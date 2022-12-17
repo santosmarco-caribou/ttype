@@ -1,0 +1,36 @@
+{
+  "root": true,
+  "env": {
+    "browser": true,
+    "es6": true
+  },
+  "parser": "@typescript-eslint/parser",
+  "parserOptions": {
+    "project": "./tsconfig.json"
+  },
+  "plugins": ["@typescript-eslint", "compat"],
+  "extends": [
+    "eslint:recommended",
+    "plugin:@typescript-eslint/eslint-recommended",
+    "plugin:@typescript-eslint/recommended",
+    "plugin:compat/recommended"
+  ],
+  "rules": {
+    "@typescript-eslint/no-unused-vars": ["error", { "argsIgnorePattern": "^_" }],
+    "@typescript-eslint/no-namespace": "off"
+  },
+  "overrides": [
+    {
+      "files": ["__test__/**/*"],
+      "parserOptions": {
+        "project": "./tsconfig.test.json"
+      }
+    },
+    {
+      "files": ["playground.ts"],
+      "parserOptions": {
+        "project": "./tsconfig.playground.json"
+      }
+    }
+  ]
+}
