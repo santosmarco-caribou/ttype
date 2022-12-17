@@ -572,9 +572,7 @@ export class TBoolean<State extends TBooleanState = InitialTBooleanState> extend
    *
    * @param values - The values to consider truthy.
    */
-  truthy<TVal extends Primitive, T extends readonly [TVal, ...TVal[]]>(
-    values: T
-  ): TBoolean<{ coerce: { true: T; false: undefined } }> {
+  truthy<TVal extends Primitive, T extends readonly [TVal, ...TVal[]]>(values: T) {
     return this.coerce({ true: values })
   }
 
@@ -584,9 +582,7 @@ export class TBoolean<State extends TBooleanState = InitialTBooleanState> extend
    *
    * @param values - The values to consider falsy.
    */
-  falsy<FVal extends Primitive, F extends readonly [FVal, ...FVal[]]>(
-    values: F
-  ): TBoolean<{ coerce: { true: undefined; false: F } }> {
+  falsy<FVal extends Primitive, F extends readonly [FVal, ...FVal[]]>(values: F) {
     return this.coerce({ false: values })
   }
 

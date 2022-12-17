@@ -7,15 +7,25 @@
   "author": "santosmarco",
   "main": "index.js",
   "scripts": {
+    "build": "pnpm run clean && pnpm run build:cjs && pnpm run build:esm && pnpm run build:deno",
+    "build:cjs": "tsc -p tsconfig.cjs.json",
+    "build:deno": "node ./deno/build.mjs && cp ./README.md ./deno/lib",
+    "build:esm": "rollup --config rollup.config.js",
+    "build:types": "tsc -p tsconfig.types.json",
     "format:check": "prettier . --check",
     "format:write": "prettier . --write",
     "lint:check": "eslint . --ext .ts,.tsx",
     "lint:fix": "eslint . --ext .ts,.tsx --fix",
+    "rollup": "rollup --config rollup.config.js",
     "test": "jest",
+    "clean": "rm -rf lib/* deno/lib/*",
     "test:watch": "jest --watchAll"
   },
+  "browserslist": [
+    "defaults and supports es6-module",
+    "maintained node versions"
+  ],
   "dependencies": {
-    "@types/merge-deep": "^3.0.0",
     "clone-deep": "^4.0.1",
     "dayjs": "^1.11.7",
     "is-plain-object": "^5.0.0",
@@ -23,8 +33,10 @@
     "micro-memoize": "^4.0.14"
   },
   "devDependencies": {
+    "@rollup/plugin-typescript": "^10.0.1",
     "@types/clone-deep": "^4.0.1",
     "@types/jest": "^29.2.4",
+    "@types/merge-deep": "^3.0.0",
     "@types/node": "^18.11.16",
     "@typescript-eslint/eslint-plugin": "^5.46.1",
     "@typescript-eslint/parser": "^5.46.1",
@@ -33,13 +45,10 @@
     "expect-type": "^0.15.0",
     "jest": "^29.3.1",
     "prettier": "^2.8.1",
+    "rollup": "^3.7.5",
     "ts-jest": "^29.0.3",
     "ts-toolbelt": "^9.6.0",
     "type-fest": "^3.4.0",
     "typescript": "^4.9.4"
-  },
-  "browserslist": [
-    "defaults and supports es6-module",
-    "maintained node versions"
-  ]
+  }
 }
