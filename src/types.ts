@@ -2795,31 +2795,6 @@ export type AnyTObject<S extends TObjectShape = TObjectShape> = TObject<
 /*                                  Function                                  */
 /* -------------------------------------------------------------------------- */
 
-export type TFunctionOuterIO<A extends AnyTTuple, R extends AnyTType> = (
-  ...args: A['_I']
-) => R['_O']
-
-export type TFunctionInnerIO<A extends AnyTTuple, R extends AnyTType> = (
-  ...args: A['_O']
-) => R['_I']
-
-export type TFunctionArgsHint<
-  TupleItems,
-  TupleRest extends TTupleRest | null,
-  _Acc extends readonly unknown[] = []
-> = TupleItems extends [{ readonly hint: infer HH extends string }, ...infer R]
-  ? `args_${_Acc['length']}: ${HH}${R extends []
-      ? TupleRest extends { readonly hint: infer RH extends string }
-        ? `, ...args_${[..._Acc, unknown]['length'] & number}: ${RH}[]`
-        : ''
-      : ', '}${TFunctionArgsHint<R, TupleRest, [..._Acc, unknown]>}`
-  : ''
-
-export type TFunctionHint<
-  A extends AnyTTuple,
-  R extends AnyTType
-> = `(${TFunctionArgsHint<A['items'], A['restType']>}) => ${R['hint']}`
-
 export interface TFunctionDef<A extends AnyTTuple, R extends AnyTType>
   extends TDef {
   readonly typeName: TTypeName.Function
@@ -2828,9 +2803,9 @@ export interface TFunctionDef<A extends AnyTTuple, R extends AnyTType>
 }
 
 export class TFunction<A extends AnyTTuple, R extends AnyTType> extends TType<
-  TFunctionOuterIO<A, R>,
+  (...args: A['_I']) => R['_O'],
   TFunctionDef<A, R>,
-  TFunctionInnerIO<A, R>
+  (...args: A['_O']) => R['_I']
 > {
   readonly hint = `(${this.parameters.items
     .map((i, idx) => `args_${idx}: ${i.hint}`)
@@ -2913,21 +2888,23 @@ export class TFunction<A extends AnyTTuple, R extends AnyTType> extends TType<
     return new TFunction({ ...this._def, returns })
   }
 
-  implement<F extends TFunctionInnerIO<A, R>>(
+  implement<F extends (...args: A['_O']) => R['_I']>(
     fn: F
   ): ReturnType<F> extends R['_O']
     ? (...args: A['_I']) => ReturnType<F>
-    : TFunctionOuterIO<A, R> {
+    : (...args: A['_I']) => R['_O'] {
     return this.parse(fn) as ReturnType<F> extends R['_O']
       ? (...args: A['_I']) => ReturnType<F>
-      : TFunctionOuterIO<A, R>
+      : (...args: A['_I']) => R['_O']
   }
 
-  strictImplement(fn: TFunctionInnerIO<A, R>): TFunctionInnerIO<A, R> {
+  strictImplement(
+    fn: (...args: A['_O']) => R['_I']
+  ): (...args: A['_O']) => R['_I'] {
     return this.parse(fn)
   }
 
-  validate<F extends TFunctionInnerIO<A, R>>(fn: F) {
+  validate<F extends (...args: A['_O']) => R['_I']>(fn: F) {
     return this.implement(fn)
   }
 
