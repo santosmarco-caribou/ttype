@@ -20,22 +20,19 @@ export namespace utils {
   export type Class = abstract new (...args: readonly any[]) => any
   export type AnyFunction = ((...args: readonly any[]) => any) | Class
   export type Equals<T, U> = (<X>() => X extends T ? 1 : 0) extends <Y>() => Y extends U ? 1 : 0 ? 1 : 0
-  export type Literalized<T extends Primitive = Primitive> = T extends string ? `"${T}"` : T extends number | boolean | null | undefined ? `${T}` : T extends bigint ? `${T}n` : 'symbol'
+  export type Defined<T> = T extends undefined ? never : T
   export type Simplify<T> = T extends _internals.BuiltIn | AnyTType ? T : { 0: { [K in keyof T]: Simplify<T[K]> }; 1: T }[Equals<T, unknown>]
+  export type Literalized<T extends Primitive = Primitive> = T extends string ? `"${T}"` : T extends number | boolean | null | undefined ? `${T}` : T extends bigint ? `${T}n` : 'symbol'
   export type RequiredFilter<T, K extends keyof T> = undefined extends T[K] ? (T[K] extends undefined ? K : never) : K
   export type OptionalFilter<T, K extends keyof T> = undefined extends T[K] ? (T[K] extends undefined ? never : K) : never
   export type EnforceOptional<T> = Simplify<{ [K in keyof T as RequiredFilter<T, K>]: T[K] } & { [K in keyof T as OptionalFilter<T, K>]?: Exclude<T[K], undefined> }>
-  export type Defined<T> = T extends undefined ? never : T
   export type Merge<A, B> = Omit<A, keyof B> & B
+  export type OmitIndexSignature<T> = { [K in keyof T as {} extends Record<K, unknown> ? never : K]: T[K] }
+  export type UnionToIntersection<T> = (T extends unknown ? (x: T) => void : never) extends (i: infer I) => void ? I : never
+  export type GetLastOfUnion<T> = ((T extends unknown ? (x: () => T) => void : never) extends (i: infer I) => void ? I : never) extends () => infer Last ? Last : never
   export type ConstructTuple<T, L extends number> = _internals.ConstructTuple<T, L>
   export type PartialTuple<T> = T extends [] ? T : T extends [infer H, ...infer R] ? [H?, ...PartialTuple<R>] : never
-  export type GetLastOfUnion<T> = ((T extends unknown ? (x: () => T) => void : never) extends (y: infer Intersection) => void ? Intersection : never) extends () => infer Last ? Last : never
   export type UnionToTuple<T> = _internals.UnionToTuple<T>
-  export type UnionToIntersection<U> = (U extends unknown ? (x: U) => void : never) extends (y: infer I) => void ? I : never
-  export type UnionToOvlds<U> = UnionToIntersection<U extends unknown ? (x: U) => void : never>
-  export type PopUnion<U> = UnionToOvlds<U> extends (x: infer X) => void ? X : never
-  export type IsUnion<T> = [T] extends [UnionToIntersection<T>] ? false : true
-  export type UnionToArray<T, A extends unknown[] = []> = IsUnion<T> extends true ? UnionToArray<Exclude<T, PopUnion<T>>, [PopUnion<T>, ...A]> : [T, ...A]
   export type Tail<T> = T extends [unknown, ...infer U] ? U : []
   declare const TYPE_ERROR: unique symbol
   export type $TypeError<Msg extends string> = { [TYPE_ERROR]: Msg }
@@ -90,6 +87,6 @@ export namespace utils {
       : _Acc extends { readonly length: TUPLE_MAX_LENGTH }
       ? T[]
       : ConstructTuple<T, L, [..._Acc, T]>
-    export type UnionToTuple<T, _Acc extends unknown[] = []> = [T] extends [never] ? Readonly<_Acc> : UnionToTuple<Exclude<T, GetLastOfUnion<T>>, [GetLastOfUnion<T>, ..._Acc]>
+    export type UnionToTuple<T, _Acc extends readonly unknown[] = []> = [T] extends [never] ? readonly [..._Acc] : UnionToTuple<Exclude<T, GetLastOfUnion<T>>, readonly [GetLastOfUnion<T>, ..._Acc]>
   }
 }

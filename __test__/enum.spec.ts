@@ -21,21 +21,21 @@ describe('TEnum', () => {
   test('hint', () => {
     expect(stringEnum.hint).toBe('"a" | "b" | "c"')
     expect(numberEnum.hint).toBe('1 | 2 | 3')
-    expect(mixedEnum.hint).toBe('"a" | 1 | "b" | 2 | "c" | 3')
+    expect(mixedEnum.hint).toBe('1 | 2 | 3 | "a" | "b" | "c"')
     expect(nativeStringEnum.hint).toBe('"a" | "b" | "c"')
     expect(nativeNumberEnum.hint).toBe('0 | 1 | 2')
     assertEqual<typeof stringEnum['hint'], '"a" | "b" | "c"'>(true)
-    assertEqual<typeof numberEnum['hint'], '1 | 2 | 3'>(true)
-    assertEqual<typeof mixedEnum['hint'], '"a" | 1 | "b" | 2 | "c" | 3'>(true)
+    assertEqual<typeof numberEnum['hint'], '3 | 1 | 2'>(true)
+    assertEqual<typeof mixedEnum['hint'], '"a" | "b" | "c" | 3 | 1 | 2'>(true)
     assertEqual<typeof nativeStringEnum['hint'], '"a" | "b" | "c"'>(true)
-    assertEqual<typeof nativeNumberEnum['hint'], '0 | 1 | 2'>(true)
+    assertEqual<typeof nativeNumberEnum['hint'], '1 | 2 | 0'>(true)
   })
 
   describe('values/enum', () => {
     test('works', () => {
       expect(stringEnum.values).toStrictEqual(['a', 'b', 'c'])
       expect(numberEnum.values).toStrictEqual([1, 2, 3])
-      expect(mixedEnum.values).toStrictEqual(['a', 1, 'b', 2, 'c', 3])
+      expect(mixedEnum.values).toStrictEqual([1, 2, 3, 'a', 'b', 'c'])
       expect(nativeStringEnum.values).toStrictEqual(['a', 'b', 'c'])
       expect(nativeNumberEnum.values).toStrictEqual([0, 1, 2])
       expect(stringEnum.enum).toStrictEqual({ a: 'a', b: 'b', c: 'c' })
@@ -62,15 +62,15 @@ describe('TEnum', () => {
 
     test('inference', () => {
       assertEqual<typeof stringEnum['values'], readonly ['a', 'b', 'c']>(true)
-      assertEqual<typeof numberEnum['values'], readonly [1, 2, 3]>(true)
+      assertEqual<typeof numberEnum['values'], readonly [3, 1, 2]>(true)
       assertEqual<
         typeof mixedEnum['values'],
-        readonly ['a', 1, 'b', 2, 'c', 3]
+        readonly ['a', 'b', 'c', 3, 1, 2]
       >(true)
       assertEqual<typeof nativeStringEnum['values'], readonly ['a', 'b', 'c']>(
         true
       )
-      assertEqual<typeof nativeNumberEnum['values'], readonly [0, 1, 2]>(true)
+      assertEqual<typeof nativeNumberEnum['values'], readonly [1, 2, 0]>(true)
       assertEqual<
         typeof stringEnum['enum'],
         { readonly a: 'a'; readonly b: 'b'; readonly c: 'c' }
@@ -92,19 +92,11 @@ describe('TEnum', () => {
       >(true)
       assertEqual<
         typeof nativeStringEnum['enum'],
-        {
-          readonly A: MyStringEnum.A
-          readonly B: MyStringEnum.B
-          readonly C: MyStringEnum.C
-        }
+        { readonly A: 'a'; readonly B: 'b'; readonly C: 'c' }
       >(true)
       assertEqual<
         typeof nativeNumberEnum['enum'],
-        {
-          readonly A: MyNumberEnum.A
-          readonly B: MyNumberEnum.B
-          readonly C: MyNumberEnum.C
-        }
+        { readonly A: 0; readonly B: 1; readonly C: 2 }
       >(true)
     })
   })
@@ -165,11 +157,11 @@ describe('TEnum', () => {
       >(true)
       assertEqual<
         typeof nativeBananaOnly['enum'],
-        { readonly Banana: FoodEnum.Banana }
+        { readonly Banana: 'banana' }
       >(true)
       assertEqual<
         typeof nativeAppleAndOrange['enum'],
-        { readonly Apple: FoodEnum.Apple; readonly Orange: FoodEnum.Orange }
+        { readonly Apple: 'apple'; readonly Orange: 'orange' }
       >(true)
     })
   })

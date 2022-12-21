@@ -16,6 +16,7 @@
     "plugin:compat/recommended"
   ],
   "rules": {
+    "no-case-declarations": "off",
     "@typescript-eslint/no-explicit-any": "off",
     "@typescript-eslint/no-unused-vars": [
       "error",
