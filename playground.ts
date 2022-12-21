@@ -1,8 +1,18 @@
-import { z } from 'zod'
 import { t } from './src'
 
-const c = t.object({ a: t.null(), b: t.never() }).pick(['a', 'b'])
+export const Food = t
+  .object({
+    name: t.string(),
+    description: t.string().optional(),
+    calories: t.number().optional(),
+    fat: t.number().optional(),
+    carbs: t.number().optional(),
+    protein: t.number().optional(),
+  })
+  .or(t.string())
 
-c.parse(2)
-
-// z.string().parse(2)
+Food.parse({
+  name: 'foo',
+  description: 'bar',
+  calories: 100,
+})

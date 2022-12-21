@@ -334,7 +334,7 @@ export class ParseContext<D = unknown, O = unknown, I = O> {
       path: [],
       status: ParseStatus.Valid,
       parent: null,
-      common: { ...options, async: true },
+      common: { ...type.options, ...options, async: true },
       ownChildren: [],
       ownIssues: [],
     })

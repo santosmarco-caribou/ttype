@@ -7,7 +7,6 @@ import { TGlobal } from './global'
 import { IssueKind, type Issue, type checks } from './issues'
 import {
   ParseContext,
-  SuccessfulParseResult,
   TParsedType,
   getParsedType,
   type AsyncParseResultOf,
@@ -16,6 +15,7 @@ import {
   type ParsePath,
   type ParseResult,
   type ParseResultOf,
+  type SuccessfulParseResult,
   type SyncParseResult,
   type SyncParseResultOf,
 } from './parse'
