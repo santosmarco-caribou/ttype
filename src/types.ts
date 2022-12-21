@@ -2950,14 +2950,27 @@ export class TFunction<A extends AnyTTuple, R extends AnyTType> extends TType<
     options?: CreateOptions
   ): TFunction<A, R>
   private static _create(
-    args: TTupleItems | AnyTTuple,
+    options?: CreateOptions
+  ): TFunction<TTuple<[], null>, TUnknown>
+  private static _create(
+    argsOrOptions?: TTupleItems | AnyTTuple | CreateOptions,
     returnsOrOptions?: AnyTType | CreateOptions,
     options?: CreateOptions
   ): TFunction<any, any> {
     return new TFunction({
       typeName: TTypeName.Function,
-      options: returnsOrOptions instanceof TType ? options : returnsOrOptions,
-      args: args instanceof TTuple ? args : TTuple.create(args),
+      options:
+        argsOrOptions instanceof TTuple || utils.isArray(argsOrOptions)
+          ? returnsOrOptions instanceof TType
+            ? options
+            : returnsOrOptions
+          : argsOrOptions,
+      args:
+        argsOrOptions instanceof TTuple
+          ? argsOrOptions
+          : utils.isArray(argsOrOptions)
+          ? TTuple.create(argsOrOptions)
+          : TTuple.create([]),
       returns:
         returnsOrOptions instanceof TType
           ? returnsOrOptions
