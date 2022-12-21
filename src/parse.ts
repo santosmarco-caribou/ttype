@@ -1,5 +1,3 @@
-import cloneDeep from 'clone-deep'
-import { Primitive } from 'type-fest'
 import { TError } from './error'
 import { IssueKind, type Issue } from './issues'
 import type { AnyTType } from './types'
@@ -87,7 +85,7 @@ export class ParseContext<D = unknown, O = unknown, I = O> {
   }
 
   get data(): D {
-    return cloneDeep(this._def.data)
+    return utils.cloneDeep(this._def.data)
   }
 
   get dataType(): TParsedType {
@@ -259,10 +257,10 @@ export class ParseContext<D = unknown, O = unknown, I = O> {
   }
 
   INVALID_LITERAL(payload: {
-    readonly expected: Primitive
-    readonly received: Primitive
+    readonly expected: utils.Primitive
+    readonly received: utils.Primitive
   }): this {
-    const makeExpectedReceived = (value: Primitive) => ({
+    const makeExpectedReceived = (value: utils.Primitive) => ({
       value,
       formatted: utils.literalize(value),
     })
@@ -366,10 +364,8 @@ export const getParsedType = (data: unknown): TParsedType => {
     case 'string':
       return TParsedType.String
     case 'number':
-      if (Number.isNaN(data)) {
-        return TParsedType.NaN
-      }
-      return TParsedType.Number
+      if (Number.isNaN(data)) return TParsedType.NaN
+      else return TParsedType.Number
     case 'bigint':
       return TParsedType.BigInt
     case 'boolean':
@@ -389,6 +385,7 @@ export const getParsedType = (data: unknown): TParsedType => {
       if (data instanceof Promise) return TParsedType.Promise
       if (data instanceof RegExp) return TParsedType.RegExp
       if (data instanceof Set) return TParsedType.Set
-      return TParsedType.Object
+      if (utils.isObject(data)) return TParsedType.Object
+      else return TParsedType.Unknown
   }
 }

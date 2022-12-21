@@ -43,6 +43,7 @@ export abstract class TType<O, Def extends TDef, I = O> {
     this.nullable = this.nullable.bind(this)
     this.nullish = this.nullish.bind(this)
     this.or = this.or.bind(this)
+    this.and = this.and.bind(this)
     this.array = this.array.bind(this)
     this.promise = this.promise.bind(this)
     this.brand = this.brand.bind(this)
@@ -167,25 +168,25 @@ export abstract class TType<O, Def extends TDef, I = O> {
   refine<O_ extends O>(
     check: (data: O) => data is O_,
     message?: RefinementMsgArg<O>
-  ): TEffects<this, O_, I>
+  ): TEffects<this, O_>
   refine<T>(
     check: (data: O) => T | Promise<T>,
     message?: RefinementMsgArg<O>
-  ): TEffects<this, O, I>
+  ): TEffects<this>
   refine(
-    check: (data: O) => unknown | Promise<unknown>,
+    check: (data: O) => unknown,
     message?: RefinementMsgArg<O>
-  ): TEffects<this, O, I> {
+  ): TEffects<this> {
     return TEffects.refine(this, check, message)
   }
 
   transform<O_>(
     transform: (data: O, ctx: EffectContext<O>) => O_ | Promise<O_>
-  ): TEffects<this, O_, I> {
+  ): TEffects<this, O_> {
     return TEffects.transform(this, transform)
   }
 
-  preprocess(preprocess: (data: unknown) => O): TEffects<this, O, I> {
+  preprocess(preprocess: (data: unknown) => I): TEffects<this> {
     return TEffects.preprocess(preprocess, this)
   }
 
@@ -510,18 +511,18 @@ export class TFalse extends TType<false, TFalseDef> {
 /*                                    Date                                    */
 /* -------------------------------------------------------------------------- */
 
-export type DateDataInput =
+export type TDateCheckInput =
   | utils.LiteralUnion<'now', string>
   | number
   | Date
   | Dayjs
 
 export type TDateCheck =
-  | checks.Min<DateDataInput>
-  | checks.Max<DateDataInput>
-  | checks.Range<DateDataInput>
+  | checks.Min<TDateCheckInput>
+  | checks.Max<TDateCheckInput>
+  | checks.Range<TDateCheckInput>
 
-const parseDateDataInput = (data: DateDataInput) =>
+const parseTDateCheckInput = (data: TDateCheckInput) =>
   data === 'now' ? utils.dayjs() : data
 
 export interface TDateState {
@@ -583,8 +584,8 @@ export class TDate<S extends TDateState = TDateState> extends TType<
         case 'min':
           if (
             check.inclusive
-              ? currentDate.isBefore(parseDateDataInput(check.value))
-              : currentDate.isSameOrBefore(parseDateDataInput(check.value))
+              ? currentDate.isBefore(parseTDateCheckInput(check.value))
+              : currentDate.isSameOrBefore(parseTDateCheckInput(check.value))
           ) {
             ctx.DIRTY(IssueKind.InvalidDate, check)
             if (ctx.common.abortEarly) {
@@ -595,8 +596,8 @@ export class TDate<S extends TDateState = TDateState> extends TType<
         case 'max':
           if (
             check.inclusive
-              ? currentDate.isAfter(parseDateDataInput(check.value))
-              : currentDate.isSameOrAfter(parseDateDataInput(check.value))
+              ? currentDate.isAfter(parseTDateCheckInput(check.value))
+              : currentDate.isSameOrAfter(parseTDateCheckInput(check.value))
           ) {
             ctx.DIRTY(IssueKind.InvalidDate, check)
             if (ctx.common.abortEarly) {
@@ -607,8 +608,8 @@ export class TDate<S extends TDateState = TDateState> extends TType<
         case 'range':
           if (
             currentDate.isBetween(
-              parseDateDataInput(check.min),
-              parseDateDataInput(check.max),
+              parseTDateCheckInput(check.min),
+              parseTDateCheckInput(check.max),
               undefined,
               `${['min', 'both'].includes(check.inclusive) ? '[' : '('}${
                 ['max', 'both'].includes(check.inclusive) ? ']' : ')'
@@ -652,7 +653,7 @@ export class TDate<S extends TDateState = TDateState> extends TType<
    * @param options.message - The error message to use.
    */
   min(
-    value: DateDataInput,
+    value: TDateCheckInput,
     options?: { readonly inclusive?: boolean; readonly message?: string }
   ): TDate<S> {
     return this._addCheck('min', {
@@ -668,7 +669,7 @@ export class TDate<S extends TDateState = TDateState> extends TType<
    * @see {@link min | `min`}
    */
   after(
-    value: DateDataInput,
+    value: TDateCheckInput,
     options?: { readonly message?: string }
   ): TDate<S> {
     return this.min(value, { inclusive: false, message: options?.message })
@@ -680,7 +681,7 @@ export class TDate<S extends TDateState = TDateState> extends TType<
    * @see {@link min | `min`}
    */
   sameOrAfter(
-    value: DateDataInput,
+    value: TDateCheckInput,
     options?: { readonly message?: string }
   ): TDate<S> {
     return this.min(value, { inclusive: true, message: options?.message })
@@ -696,7 +697,7 @@ export class TDate<S extends TDateState = TDateState> extends TType<
    * @param options.message - The error message to use.
    */
   max(
-    value: DateDataInput,
+    value: TDateCheckInput,
     options?: { readonly inclusive?: boolean; readonly message?: string }
   ): TDate<S> {
     return this._addCheck('max', {
@@ -712,7 +713,7 @@ export class TDate<S extends TDateState = TDateState> extends TType<
    * @see {@link max | `max`}
    */
   before(
-    value: DateDataInput,
+    value: TDateCheckInput,
     options?: { readonly message?: string }
   ): TDate<S> {
     return this.max(value, { inclusive: false, message: options?.message })
@@ -724,7 +725,7 @@ export class TDate<S extends TDateState = TDateState> extends TType<
    * @see {@link max | `max`}
    */
   sameOrBefore(
-    value: DateDataInput,
+    value: TDateCheckInput,
     options?: { readonly message?: string }
   ): TDate<S> {
     return this.max(value, { inclusive: true, message: options?.message })
@@ -745,8 +746,8 @@ export class TDate<S extends TDateState = TDateState> extends TType<
    * @param options.message - The error message to use.
    */
   range(
-    min: DateDataInput,
-    max: DateDataInput,
+    min: TDateCheckInput,
+    max: TDateCheckInput,
     options?: {
       readonly inclusive?: 'min' | 'max' | 'both' | 'none'
       readonly message?: string
@@ -764,8 +765,8 @@ export class TDate<S extends TDateState = TDateState> extends TType<
    * Alias for {@link range | `range`}.
    */
   between(
-    min: DateDataInput,
-    max: DateDataInput,
+    min: TDateCheckInput,
+    max: TDateCheckInput,
     options?: {
       readonly inclusive?: 'min' | 'max' | 'both' | 'none'
       readonly message?: string
@@ -988,7 +989,7 @@ export class TEnum<T extends EnumLike> extends TType<T[keyof T], TEnumDef<T>> {
   readonly hint = this.values.map(utils.literalize).join(' | ') as TEnumHint<T>
 
   _parse(ctx: ParseContextOf<this>): ParseResultOf<this> {
-    const types = [
+    const enumTypes = [
       ...new Set(
         this.values
           .map((value) => typeof value)
@@ -999,15 +1000,15 @@ export class TEnum<T extends EnumLike> extends TType<T[keyof T], TEnumDef<T>> {
     ]
 
     const isValidEnumType = (data: unknown): data is EnumValue =>
-      utils.includes(types, typeof data)
+      utils.includes(enumTypes, typeof data)
 
     if (!isValidEnumType(ctx.data)) {
       return ctx
         .INVALID_TYPE({
           expected:
-            types.length === 1
+            enumTypes.length === 1
               ? { string: TParsedType.String, number: TParsedType.Number }[
-                  types[0]
+                  enumTypes[0]
                 ]
               : TParsedType.EnumValue,
         })
@@ -2386,69 +2387,73 @@ export type AnyTIntersection = TIntersection<TIntersectionMembers>
 /* -------------------------------------------------------------------------- */
 
 export enum EffectKind {
+  Preprocess = 'preprocess',
   Refinement = 'refinement',
   Transform = 'transform',
-  Preprocess = 'preprocess',
 }
 
-export interface EffectContext<O = unknown, I = O> {
+export interface EffectContext<O, I = O> {
   readonly issue: ParseContext<unknown, O, I>['DIRTY']
   readonly path: ParsePath
 }
 
-export interface BaseEffect<T extends EffectKind> {
-  readonly kind: T
+export type EffectContextOf<T extends AnyTType> = EffectContext<
+  T['_O'],
+  T['_I']
+>
+
+const createEffectContext = <O, I = O>(
+  parseCtx: ParseContext<unknown, O, I>
+): EffectContext<O, I> => ({
+  issue: (...args) => parseCtx['DIRTY'](...args),
+  path: [...parseCtx.path],
+})
+
+export interface BaseEffect<K extends EffectKind> {
+  readonly kind: K
 }
 
-export interface RefinementEffect<Data = unknown>
+export interface PreprocessEffect<T> extends BaseEffect<EffectKind.Preprocess> {
+  readonly transform: (data: unknown) => T
+}
+
+export interface RefinementEffect<T extends AnyTType>
   extends BaseEffect<EffectKind.Refinement> {
-  refine(data: Data, ctx: EffectContext<Data>): boolean | Promise<boolean>
+  readonly refine: (
+    data: T['_O'],
+    ctx: EffectContextOf<T>
+  ) => boolean | Promise<boolean>
 }
 
-export interface TransformEffect<Data = unknown, O = unknown>
+export interface TransformEffect<T extends AnyTType, O>
   extends BaseEffect<EffectKind.Transform> {
-  transform(data: Data, ctx: EffectContext<Data>): O | Promise<O>
-}
-
-export interface PreprocessEffect<O = unknown>
-  extends BaseEffect<EffectKind.Preprocess> {
-  transform(data: unknown): O
+  readonly transform: (data: T['_O'], ctx: EffectContextOf<T>) => O | Promise<O>
 }
 
 export type TEffect<T = unknown, U = unknown> =
-  | RefinementEffect<T>
-  | TransformEffect<T, U>
   | PreprocessEffect<T>
+  | RefinementEffect<T & AnyTType>
+  | TransformEffect<T & AnyTType, U>
 
-export type RefinementMessageParameters = RequireAtLeastOne<
+export type RefinementMsgParams = RequireAtLeastOne<
   Issue<IssueKind.Custom>['payload']
-> & {
-  readonly message: string
-}
+> & { readonly message: string }
 
 export type RefinementMsgArg<T> =
   | string
-  | RefinementMessageParameters
-  | ((data: T) => RefinementMessageParameters)
-
-const createEffectContext = <O, I>(
-  parseContext: ParseContext<unknown, O, I>
-): EffectContext<O, I> => ({
-  issue: (...arguments_) => parseContext['DIRTY'](...arguments_),
-  path: [...parseContext.path],
-})
+  | RefinementMsgParams
+  | ((data: T) => RefinementMsgParams)
 
 type RefinementExecutorCreator<Async extends boolean = false> = <
-  T,
-  U extends EffectContext
+  T extends AnyTType
 >(
   effect: RefinementEffect<T>,
-  effectContext: U
+  effectCtx: EffectContext<T>
 ) => (data: T) => Async extends true ? Promise<boolean> : boolean
 
 const createSyncRefinementExecutor: RefinementExecutorCreator =
-  (effect, effectContext) => (data) => {
-    const result = effect.refine(data, effectContext)
+  (effect, effectCtx) => (data) => {
+    const result = effect.refine(data, effectCtx)
     if (result instanceof Promise) {
       throw new TypeError(
         'Async refinement encountered during synchronous parse operation. Use .parseAsync instead.'
@@ -2458,26 +2463,16 @@ const createSyncRefinementExecutor: RefinementExecutorCreator =
   }
 
 const createAsyncRefinementExecutor: RefinementExecutorCreator<true> =
-  (effect, effectContext) => async (data) =>
-    effect.refine(data, effectContext)
+  (effect, effectCtx) => async (data) =>
+    effect.refine(data, effectCtx)
 
 export interface TEffectsDef<T extends AnyTType> extends TDef {
   readonly typeName: TTypeName.Effects
-  readonly underlying: T
+  readonly type: T
   readonly effect: TEffect
 }
 
-export type UnwrapTEffectsDeep<T> = T extends TEffects<
-  infer U,
-  infer O,
-  infer I
->
-  ? UnwrapTEffectsDeep<U> extends infer UU
-    ? UU extends AnyTType
-      ? TEffects<UU, O, I>
-      : never
-    : never
-  : T
+export type GetTEffectsSource<T> = T extends AnyTEffects ? T['source'] : T
 
 export class TEffects<
   T extends AnyTType<any>,
@@ -2487,69 +2482,74 @@ export class TEffects<
   readonly hint: string = this.source.hint
 
   _parse(ctx: ParseContextOf<this>): ParseResultOf<this> {
-    const { underlying, effect } = this._def
+    const { effect } = this._def
 
     if (effect.kind === EffectKind.Preprocess) {
       const processed = effect.transform(ctx.data)
-
       return ctx.common.async
         ? Promise.resolve(processed).then((processedAsync) => {
             ctx.setData(processedAsync as O)
-            return underlying._parseAsync(ctx)
+            return this.underlying._parseAsync(
+              ctx.clone({ ttype: this.underlying })
+            )
           })
-        : ctx.setData(processed as O) && underlying._parseSync(ctx)
+        : ctx.setData(processed as O) &&
+            this.underlying._parseSync(ctx.clone({ ttype: this.underlying }))
     }
 
-    const effectContext = createEffectContext(ctx)
+    const effectCtx = createEffectContext(ctx)
 
     if (effect.kind === EffectKind.Refinement) {
       if (ctx.common.async) {
         const executeRefinement = createAsyncRefinementExecutor(
           effect,
-          effectContext
+          effectCtx
         )
-        return underlying
-          ._parseAsync(ctx)
-          .then((underlyingResult) =>
-            underlyingResult.ok
-              ? executeRefinement(underlyingResult.data).then(
-                  (refinementResult) =>
-                    refinementResult
-                      ? ctx.OK(underlyingResult.data)
-                      : ctx.ABORT()
+        return this.underlying
+          ._parseAsync(ctx.clone({ ttype: this.underlying }))
+          .then((underlyingRes) =>
+            underlyingRes.ok
+              ? executeRefinement(underlyingRes.data).then((refinementRes) =>
+                  refinementRes ? ctx.OK(underlyingRes.data) : ctx.ABORT()
                 )
               : ctx.ABORT()
           )
       } else {
         const executeRefinement = createSyncRefinementExecutor(
           effect,
-          effectContext
+          effectCtx
         )
-        const underlyingResult = underlying._parseSync(ctx)
-        return underlyingResult.ok && executeRefinement(underlyingResult.data)
-          ? ctx.OK(underlyingResult.data)
+        const underlyingRes = this.underlying._parseSync(
+          ctx.clone({ ttype: this.underlying })
+        )
+        return underlyingRes.ok && executeRefinement(underlyingRes.data)
+          ? ctx.OK(underlyingRes.data)
           : ctx.ABORT()
       }
     }
 
     if (effect.kind === EffectKind.Transform) {
       if (ctx.common.async) {
-        return underlying._parseAsync(ctx).then((base) => {
-          if (!base.ok) {
-            return ctx.ABORT()
-          }
-          return Promise.resolve(
-            effect.transform(base.data, effectContext)
-          ).then((result) =>
-            ctx.isInvalid() ? ctx.ABORT() : ctx.OK(result as T['_O'])
-          )
-        })
+        return this.underlying
+          ._parseAsync(ctx.clone({ ttype: this.underlying }))
+          .then((baseRes) => {
+            if (!baseRes.ok) {
+              return ctx.ABORT()
+            }
+            return Promise.resolve(
+              effect.transform(baseRes.data, effectCtx)
+            ).then((result) =>
+              ctx.isInvalid() ? ctx.ABORT() : ctx.OK(result as T['_O'])
+            )
+          })
       } else {
-        const base = underlying._parseSync(ctx)
-        if (!base.ok) {
+        const baseRes = this.underlying._parseSync(
+          ctx.clone({ ttype: this.underlying })
+        )
+        if (!baseRes.ok) {
           return ctx.ABORT()
         }
-        const result = effect.transform(base.data, effectContext)
+        const result = effect.transform(baseRes.data, effectCtx)
         if (result instanceof Promise) {
           throw new TypeError(
             'Asynchronous transform encountered during synchronous parse operation. Use `.parseAsync()` instead.'
@@ -2563,71 +2563,66 @@ export class TEffects<
   }
 
   get underlying(): T {
-    return this._def.underlying
+    return this._def.type
   }
 
-  get source(): UnwrapTEffectsDeep<T> {
-    const { underlying } = this
-    return underlying instanceof TEffects ? underlying.unwrapDeep() : underlying
+  get source(): GetTEffectsSource<T> {
+    return this.underlying instanceof TEffects
+      ? this.underlying.source
+      : this.underlying
   }
 
   unwrap(): T {
     return this.underlying
   }
 
-  unwrapDeep(): UnwrapTEffectsDeep<T> {
+  unwrapDeep(): GetTEffectsSource<T> {
     return this.source
   }
 
-  private static _create<
-    S extends AnyTType,
-    O = S['_O'],
-    I = S['_I'],
+  private static _create = <
+    T extends AnyTType,
+    O = T['_O'],
+    I = T['_I'],
     E extends TEffect = TEffect
-  >(type: S, effect: E) {
-    return new TEffects<S, O, I>({
-      typeName: TTypeName.Effects,
-      underlying: type,
-      effect,
-    })
-  }
+  >(
+    type: T,
+    effect: E
+  ) => new TEffects<T, O, I>({ typeName: TTypeName.Effects, type, effect })
 
-  static refine<T extends AnyTType, RefinedOutput extends T['_O']>(
-    schema: T,
-    check: (data: T['_O']) => data is RefinedOutput,
+  private static _refine<T extends AnyTType, O extends T['_O']>(
+    type: T,
+    check: (data: T['_O']) => data is O,
     message?: RefinementMsgArg<T['_O']>
-  ): TEffects<T, RefinedOutput, T['_I']>
-  static refine<T extends AnyTType, U>(
-    schema: T,
+  ): TEffects<T, O>
+  private static _refine<T extends AnyTType, U>(
+    type: T,
     check: (data: T['_O']) => U | Promise<U>,
     message?: RefinementMsgArg<T['_O']>
-  ): TEffects<T, T['_O'], T['_I']>
-  static refine<T extends AnyTType>(
-    schema: T,
-    check: (data: T['_O']) => unknown | Promise<unknown>,
+  ): TEffects<T>
+  private static _refine<T extends AnyTType>(
+    type: T,
+    check: (data: T['_O']) => unknown,
     message?: RefinementMsgArg<T['_O']>
-  ): TEffects<T, T['_O'], T['_I']> {
-    const getIssuePayload = (
-      data: T['_O']
-    ): Issue<IssueKind.Custom>['payload'] => {
-      if (!message || typeof message === 'string') {
-        return { message }
-      } else if (typeof message === 'function') {
-        return message(data)
-      } else {
-        return message
-      }
-    }
-    return TEffects._create(schema, {
+  ): TEffects<T> {
+    return TEffects._create<T, T['_O'], T['_I'], RefinementEffect<T>>(type, {
       kind: EffectKind.Refinement,
       refine: (data, ctx) => {
-        const result = check(data)
-        console.log(result)
         const abort = () => {
-          const issuePayload = getIssuePayload(data)
+          const getIssuePayload = (): Issue<IssueKind.Custom>['payload'] => {
+            if (!message || typeof message === 'string') {
+              return { message }
+            } else if (typeof message === 'function') {
+              return message(data)
+            } else {
+              return message
+            }
+          }
+          const issuePayload = getIssuePayload()
           ctx.issue(IssueKind.Custom, issuePayload, issuePayload.message)
           return false
         }
+        const result = check(data)
         if (result instanceof Promise) {
           return result.then((resolvedResult) => !!resolvedResult || abort())
         }
@@ -2636,36 +2631,28 @@ export class TEffects<
     })
   }
 
-  static transform<T extends AnyTType, NewOut>(
-    type: T,
-    transform: (
-      data: T['_O'],
-      ctx: EffectContext<T['_O']>
-    ) => NewOut | Promise<NewOut>
-  ): TEffects<T, NewOut, T['_I']> {
-    return TEffects._create<
-      T,
-      NewOut,
-      T['_I'],
-      TransformEffect<T['_O'], NewOut>
-    >(type, {
-      kind: EffectKind.Transform,
-      transform,
-    })
-  }
-
-  static preprocess<O, T extends TType<O, any, any>>(
-    preprocess: (data: unknown) => O,
+  static preprocess = <I, O, T extends AnyTType<O, I>>(
+    preprocess: (data: unknown) => I,
     type: T
-  ): TEffects<T, O, T['_I']> {
-    return TEffects._create<T, O, T['_I'], PreprocessEffect<O>>(type, {
+  ): TEffects<T> =>
+    TEffects._create<T, O, I, PreprocessEffect<I>>(type, {
       kind: EffectKind.Preprocess,
       transform: preprocess,
     })
-  }
+
+  static refine = this._refine.bind(this)
+
+  static transform = <T extends AnyTType, O>(
+    type: T,
+    transform: (data: T['_O'], ctx: EffectContextOf<T>) => O | Promise<O>
+  ): TEffects<T, O> =>
+    TEffects._create<T, O, T['_I'], TransformEffect<T, O>>(type, {
+      kind: EffectKind.Transform,
+      transform,
+    })
 }
 
-export type AnyTEffects = TEffects<AnyTType, any, any>
+export type AnyTEffects = TEffects<AnyTType>
 
 /* -------------------------------------------------------------------------- */
 /*                                   Extras                                   */
