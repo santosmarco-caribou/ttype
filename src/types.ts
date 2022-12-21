@@ -1085,7 +1085,7 @@ export class TEnum<T extends EnumLike> extends TType<T[keyof T], TEnumDef<T>> {
     })
   }
 
-  static create = TEnum._create
+  static create = this._create
 }
 
 export type AnyTEnum = TEnum<EnumLike>
@@ -1859,6 +1859,10 @@ export class TRecord<
     return this._def.values
   }
 
+  get entries(): readonly [K, V] {
+    return [this.keys, this.values]
+  }
+
   private static _create<V extends AnyTType>(values: V): TRecord<TString, V>
   private static _create<K extends AnyTType<PropertyKey>, V extends AnyTType>(
     keys: K,
@@ -1905,6 +1909,10 @@ export class TMap<K extends AnyTType, V extends AnyTType> extends TType<
 
   get values(): V {
     return this._def.values
+  }
+
+  get entries(): readonly [K, V] {
+    return [this.keys, this.values]
   }
 
   static create = <K extends AnyTType, V extends AnyTType>(
@@ -2640,7 +2648,7 @@ export class TEffects<
       transform: preprocess,
     })
 
-  static refine = this._refine.bind(this)
+  static refine = this._refine
 
   static transform = <T extends AnyTType, O>(
     type: T,
