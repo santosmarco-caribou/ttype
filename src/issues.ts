@@ -18,6 +18,8 @@ export enum IssueKind {
   InvalidTuple = 'invalid_tuple',
   InvalidEnumValue = 'invalid_enum_value',
   InvalidLiteral = 'invalid_literal',
+  InvalidArguments = 'invalid_arguments',
+  InvalidReturnType = 'invalid_return_type',
   InvalidUnion = 'invalid_union',
   InvalidIntersection = 'invalid_intersection',
   InvalidInstance = 'invalid_instance',
@@ -69,6 +71,12 @@ export type IssueMap = {
       readonly value: utils.Primitive
       readonly formatted: string
     }
+  }>
+  [IssueKind.InvalidArguments]: MakeIssue<{
+    readonly error: TError
+  }>
+  [IssueKind.InvalidReturnType]: MakeIssue<{
+    readonly error: TError
   }>
   [IssueKind.InvalidUnion]: MakeIssue<{
     readonly unionErrors: readonly TError[]
