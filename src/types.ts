@@ -196,9 +196,7 @@ export abstract class TType<O, Def extends TDef, I = O> {
     payload: Omit<
       Extract<utils.Defined<Def['checks']>[number], { readonly kind: K }>,
       'kind'
-    > & {
-      readonly message: string | undefined
-    }
+    > & { readonly message: string | undefined }
   ): this {
     return this._construct({
       checks: (this._def.checks ?? [])
@@ -269,16 +267,16 @@ type ComputeNextTArrayState<
 
 export type TArrayIO<
   T extends AnyTType,
-  State extends TArrayState,
+  S extends TArrayState,
   IO extends '_I' | '_O'
-> = PositiveInfinity extends State['max']
+> = PositiveInfinity extends S['max']
   ? T[IO][]
-  : utils.Equals<State['min'], State['max']> extends 1
-  ? [...utils.ConstructTuple<T[IO], State['min']>, ...never[]]
+  : utils.Equals<S['min'], S['max']> extends 1
+  ? [...utils.ConstructTuple<T[IO], S['min']>, ...never[]]
   : [
-      ...utils.ConstructTuple<T[IO], State['min']>,
+      ...utils.ConstructTuple<T[IO], S['min']>,
       ...utils.PartialTuple<
-        utils.ConstructTuple<T[IO], N.Sub<State['max'], State['min']>>
+        utils.ConstructTuple<T[IO], N.Sub<S['max'], S['min']>>
       >,
       ...never[]
     ]
@@ -291,12 +289,8 @@ export interface TArrayDef<T extends AnyTType> extends TDef {
 
 export class TArray<
   T extends AnyTType,
-  State extends TArrayState = TArrayInitialState
-> extends TType<
-  TArrayIO<T, State, '_O'>,
-  TArrayDef<T>,
-  TArrayIO<T, State, '_I'>
-> {
+  S extends TArrayState = TArrayInitialState
+> extends TType<TArrayIO<T, S, '_O'>, TArrayDef<T>, TArrayIO<T, S, '_I'>> {
   readonly hint = `Array<${this.element.hint}>`
 
   _parse(ctx: ParseContextOf<this>): ParseResultOf<this> {
@@ -378,7 +372,7 @@ export class TArray<
           }
         }
         return ctx.isValid()
-          ? ctx.OK(result as TArrayIO<T, State, '_O'>)
+          ? ctx.OK(result as TArrayIO<T, S, '_O'>)
           : ctx.ABORT()
       })
     } else {
@@ -395,7 +389,7 @@ export class TArray<
         }
       }
       return ctx.isValid()
-        ? ctx.OK(result as TArrayIO<T, State, '_O'>)
+        ? ctx.OK(result as TArrayIO<T, S, '_O'>)
         : ctx.ABORT()
     }
   }
@@ -418,19 +412,19 @@ export class TArray<
         0: utils.$ValidateAgainstNumeric<
           { value: V; label: 'min' },
           '<=',
-          { value: State['max']; label: 'max' }
+          { value: S['max']; label: 'max' }
         >
         1: []
-      }[utils.Equals<State['min'], State['max']>]
+      }[utils.Equals<S['min'], S['max']>]
     ]
-  ): TArray<T, ComputeNextTArrayState<State, 'min', V, I>> {
+  ): TArray<T, ComputeNextTArrayState<S, 'min', V, I>> {
     return this._addCheck('min', {
       value,
       inclusive: options?.inclusive ?? true,
       message: options?.message,
     })._removeChecks(['length']) as unknown as TArray<
       T,
-      ComputeNextTArrayState<State, 'min', V, I>
+      ComputeNextTArrayState<S, 'min', V, I>
     >
   }
 
@@ -448,19 +442,19 @@ export class TArray<
         0: utils.$ValidateAgainstNumeric<
           { value: false extends I ? N.Sub<V, 1> : V; label: 'max' },
           '>=',
-          { value: State['min']; label: 'min' }
+          { value: S['min']; label: 'min' }
         >
         1: []
-      }[utils.Equals<State['min'], State['max']>]
+      }[utils.Equals<S['min'], S['max']>]
     ]
-  ): TArray<T, ComputeNextTArrayState<State, 'max', V, I>> {
+  ): TArray<T, ComputeNextTArrayState<S, 'max', V, I>> {
     return this._addCheck('max', {
       value,
       inclusive: options?.inclusive ?? true,
       message: options?.message,
     })._removeChecks(['length']) as unknown as TArray<
       T,
-      ComputeNextTArrayState<State, 'max', V, I>
+      ComputeNextTArrayState<S, 'max', V, I>
     >
   }
 
@@ -533,278 +527,7 @@ export class TArray<
     new TArray({ typeName: TTypeName.Array, checks: [], element })
 }
 
-export type AnyTArray = TArray<AnyTType, any>
-
-/* ------------------------------------------------------------------------------------------------------------------ */
-/*                                                        Date                                                        */
-/* ------------------------------------------------------------------------------------------------------------------ */
-
-export type DateDataInput = LiteralUnion<'now', string> | number | Date | Dayjs
-
-export type TDateCheck =
-  | checks.Min<DateDataInput>
-  | checks.Max<DateDataInput>
-  | checks.Range<DateDataInput>
-
-const parseDateDataInput = (data: DateDataInput) =>
-  data === 'now' ? utils.dayjs() : data
-
-export interface TDateState {
-  coerce: boolean | 'strings' | 'numbers'
-}
-
-export interface InitialTDateState {
-  coerce: false
-}
-
-export type TDateInput<State extends TDateState> = State['coerce'] extends
-  | false
-  | undefined
-  ? Date
-  : State['coerce'] extends true
-  ? Date | string | number
-  : State['coerce'] extends 'strings'
-  ? Date | string
-  : State['coerce'] extends 'numbers'
-  ? Date | number
-  : Date
-
-export interface TDateDef extends TDef {
-  readonly typeName: TTypeName.Date
-  readonly checks: readonly TDateCheck[]
-  readonly coerce: boolean | 'strings' | 'numbers'
-}
-
-export class TDate<State extends TDateState = InitialTDateState> extends TType<
-  Date,
-  TDateDef,
-  TDateInput<State>
-> {
-  readonly hint = 'Date'
-
-  _parse(ctx: ParseContextOf<this>): ParseResultOf<this> {
-    const { coerce, checks } = this._def
-
-    if (coerce) {
-      switch (coerce) {
-        case 'strings':
-          if (typeof ctx.data === 'string') {
-            ctx.setData(utils.dayjs(ctx.data).toDate())
-          }
-          break
-        case 'numbers':
-          if (typeof ctx.data === 'number') {
-            ctx.setData(new Date(ctx.data))
-          }
-          break
-        default:
-          if (typeof ctx.data === 'string' || typeof ctx.data === 'number') {
-            ctx.setData(utils.dayjs(ctx.data).toDate())
-          }
-      }
-    }
-
-    if (!(ctx.data instanceof Date)) {
-      return ctx.INVALID_TYPE({ expected: TParsedType.Date }).ABORT()
-    }
-
-    const currentDate = utils.dayjs(ctx.data)
-
-    for (const check of checks) {
-      switch (check.kind) {
-        case 'min':
-          if (
-            check.inclusive
-              ? currentDate.isBefore(parseDateDataInput(check.value))
-              : currentDate.isSameOrBefore(parseDateDataInput(check.value))
-          ) {
-            ctx.DIRTY(IssueKind.InvalidDate, check)
-            if (ctx.common.abortEarly) {
-              return ctx.ABORT()
-            }
-          }
-          break
-        case 'max':
-          if (
-            check.inclusive
-              ? currentDate.isAfter(parseDateDataInput(check.value))
-              : currentDate.isSameOrAfter(parseDateDataInput(check.value))
-          ) {
-            ctx.DIRTY(IssueKind.InvalidDate, check)
-            if (ctx.common.abortEarly) {
-              return ctx.ABORT()
-            }
-          }
-          break
-        case 'range':
-          if (
-            currentDate.isBetween(
-              check.min,
-              check.max,
-              undefined,
-              `${['min', 'both'].includes(check.inclusive) ? '[' : '('}${
-                ['max', 'both'].includes(check.inclusive) ? ']' : ')'
-              }`
-            )
-          ) {
-            ctx.DIRTY(IssueKind.InvalidDate, check)
-            if (ctx.common.abortEarly) {
-              return ctx.ABORT()
-            }
-          }
-      }
-    }
-
-    return ctx.OK(ctx.data)
-  }
-
-  /**
-   * Enables/disables coercion on the schema. Disabled by default.
-   *
-   * Possible values are:
-   *
-   * * `true` - Coerce both strings and numbers.
-   * * `'strings'` - Coerce only strings.
-   * * `'numbers'` - Coerce only numbers.
-   * * `false` - Disable coercion (deal only with native `Date` objects).
-   */
-  coerce<T extends boolean | 'strings' | 'numbers' = true>(
-    coercion = true as T
-  ): TDate<{ coerce: T }> {
-    return new TDate({ ...this._def, coerce: coercion })
-  }
-
-  /**
-   * Specifies the oldest date allowed where:
-   *
-   * @param value - The oldest date allowed.
-   * @param options - Options for this check.
-   * @param options.inclusive - Whether the date is inclusive or not.
-   * Defaults to `true`.
-   * @param options.message - The error message to use.
-   */
-  min(
-    value: DateDataInput,
-    options?: { readonly inclusive?: boolean; readonly message?: string }
-  ): TDate<State> {
-    return this._addCheck('min', {
-      value,
-      inclusive: options?.inclusive ?? true,
-      message: options?.message,
-    })._removeChecks(['range'])
-  }
-
-  /**
-   * Shorthand for `min(value, { inclusive: false })`.
-   * @see {@link min | `min`}
-   */
-  after(
-    value: DateDataInput,
-    options?: { readonly message?: string }
-  ): TDate<State> {
-    return this.min(value, { inclusive: false, message: options?.message })
-  }
-
-  /**
-   * Shorthand for `min(value, { inclusive: true })`.
-   * @see {@link min | `min`}
-   */
-  sameOrAfter(
-    value: DateDataInput,
-    options?: { readonly message?: string }
-  ): TDate<State> {
-    return this.min(value, { inclusive: true, message: options?.message })
-  }
-
-  /**
-   * Specifies the latest date allowed where:
-   *
-   * @param value - The latest date allowed.
-   * @param options - Options for this check.
-   * @param options.inclusive - Whether the date is inclusive or not.
-   * Defaults to `true`.
-   * @param options.message - The error message to use.
-   */
-  max(
-    value: DateDataInput,
-    options?: { readonly inclusive?: boolean; readonly message?: string }
-  ): TDate<State> {
-    return this._addCheck('max', {
-      value,
-      inclusive: options?.inclusive ?? true,
-      message: options?.message,
-    })._removeChecks(['range'])
-  }
-
-  /**
-   * Shorthand for `max(value, { inclusive: false })`.
-   * @see {@link max | `max`}
-   */
-  before(
-    value: DateDataInput,
-    options?: { readonly message?: string }
-  ): TDate<State> {
-    return this.max(value, { inclusive: false, message: options?.message })
-  }
-
-  /**
-   * Shorthand for `max(value, { inclusive: true })`.
-   * @see {@link max | `max`}
-   */
-  sameOrBefore(
-    value: DateDataInput,
-    options?: { readonly message?: string }
-  ): TDate<State> {
-    return this.max(value, { inclusive: true, message: options?.message })
-  }
-
-  /**
-   * Specifies a range of dates where:
-   *
-   * @param min - The oldest date allowed.
-   * @param max - The latest date allowed.
-   * @param options - Options for this check.
-   * @param options.inclusive - Whether the dates in the range are inclusive or not.
-   * Defaults to `'both'`.
-   * * `'min'` - Only the `min` value is inclusive in the range.
-   * * `'max'` - Only the `max` value is inclusive in the range.
-   * * `'both'` - Both the `min` and the `max` values are inclusive in the range.
-   * * `'none'` - Neither the `min` or the `max` values are inclusive in the range.
-   * @param options.message - The error message to use.
-   */
-  range(
-    min: DateDataInput,
-    max: DateDataInput,
-    options?: {
-      readonly inclusive?: 'min' | 'max' | 'both' | 'none'
-      readonly message?: string
-    }
-  ): TDate<State> {
-    return this._addCheck('range', {
-      min,
-      max,
-      inclusive: options?.inclusive ?? 'both',
-      message: options?.message,
-    })._removeChecks(['min', 'max'])
-  }
-
-  /**
-   * Alias for {@link range | `range`}.
-   */
-  between(
-    min: DateDataInput,
-    max: DateDataInput,
-    options?: {
-      readonly inclusive?: 'min' | 'max' | 'both' | 'none'
-      readonly message?: string
-    }
-  ): TDate<State> {
-    return this.range(min, max, options)
-  }
-
-  static create = (): TDate<InitialTDateState> =>
-    new TDate({ typeName: TTypeName.Date, checks: [], coerce: false })
-}
+export type AnyTArray = TArray<AnyTType, TArrayInitialState>
 
 /* ------------------------------------------------------------------------------------------------------------------ */
 /*                                                        Enum                                                        */
@@ -1258,6 +981,278 @@ export class TFalse extends TType<false, TFalseDef> {
   }
 
   static create = (): TFalse => new TFalse({ typeName: TTypeName.False })
+}
+
+/* -------------------------------------------------------------------------- */
+/* -------------------------------------------------------------------------- */
+/* -------------------------------------------------------------------------- */
+/*                                    Date                                    */
+/* -------------------------------------------------------------------------- */
+/* -------------------------------------------------------------------------- */
+/* -------------------------------------------------------------------------- */
+
+export type DateDataInput = LiteralUnion<'now', string> | number | Date | Dayjs
+
+export type TDateCheck =
+  | checks.Min<DateDataInput>
+  | checks.Max<DateDataInput>
+  | checks.Range<DateDataInput>
+
+const parseDateDataInput = (data: DateDataInput) =>
+  data === 'now' ? utils.dayjs() : data
+
+export interface TDateState {
+  coerce: boolean | 'strings' | 'numbers'
+}
+
+export type TDateInput<S extends TDateState> =
+  | Date
+  | (S['coerce'] extends true
+      ? string | number
+      : S['coerce'] extends 'strings'
+      ? string
+      : S['coerce'] extends 'numbers'
+      ? number
+      : never)
+
+export interface TDateDef extends TDef, TDateState {
+  readonly typeName: TTypeName.Date
+  readonly checks: readonly TDateCheck[]
+}
+
+export class TDate<S extends TDateState = TDateState> extends TType<
+  Date,
+  TDateDef,
+  TDateInput<S>
+> {
+  readonly hint = 'Date'
+
+  _parse(ctx: ParseContextOf<this>): ParseResultOf<this> {
+    const { coerce, checks } = this._def
+
+    if (coerce) {
+      switch (coerce) {
+        case 'strings':
+          if (typeof ctx.data === 'string') {
+            ctx.setData(utils.dayjs(ctx.data).toDate())
+          }
+          break
+        case 'numbers':
+          if (typeof ctx.data === 'number') {
+            ctx.setData(new Date(ctx.data))
+          }
+          break
+        default:
+          if (typeof ctx.data === 'string' || typeof ctx.data === 'number') {
+            ctx.setData(utils.dayjs(ctx.data).toDate())
+          }
+      }
+    }
+
+    if (!(ctx.data instanceof Date)) {
+      return ctx.INVALID_TYPE({ expected: TParsedType.Date }).ABORT()
+    }
+
+    const currentDate = utils.dayjs(ctx.data)
+
+    for (const check of checks) {
+      switch (check.kind) {
+        case 'min':
+          if (
+            check.inclusive
+              ? currentDate.isBefore(parseDateDataInput(check.value))
+              : currentDate.isSameOrBefore(parseDateDataInput(check.value))
+          ) {
+            ctx.DIRTY(IssueKind.InvalidDate, check)
+            if (ctx.common.abortEarly) {
+              return ctx.ABORT()
+            }
+          }
+          break
+        case 'max':
+          if (
+            check.inclusive
+              ? currentDate.isAfter(parseDateDataInput(check.value))
+              : currentDate.isSameOrAfter(parseDateDataInput(check.value))
+          ) {
+            ctx.DIRTY(IssueKind.InvalidDate, check)
+            if (ctx.common.abortEarly) {
+              return ctx.ABORT()
+            }
+          }
+          break
+        case 'range':
+          if (
+            currentDate.isBetween(
+              parseDateDataInput(check.min),
+              parseDateDataInput(check.max),
+              undefined,
+              `${['min', 'both'].includes(check.inclusive) ? '[' : '('}${
+                ['max', 'both'].includes(check.inclusive) ? ']' : ')'
+              }`
+            )
+          ) {
+            ctx.DIRTY(IssueKind.InvalidDate, check)
+            if (ctx.common.abortEarly) {
+              return ctx.ABORT()
+            }
+          }
+      }
+    }
+
+    return ctx.OK(ctx.data)
+  }
+
+  /**
+   * Enables/disables coercion on the schema. Disabled by default.
+   *
+   * Possible values are:
+   *
+   * * `true` - Coerce both strings and numbers.
+   * * `'strings'` - Coerce only strings.
+   * * `'numbers'` - Coerce only numbers.
+   * * `false` - Disable coercion (deal only with native `Date` objects).
+   */
+  coerce<T extends boolean | 'strings' | 'numbers' = true>(
+    coercion = true as T
+  ): TDate<{ coerce: T }> {
+    return new TDate({ ...this._def, coerce: coercion })
+  }
+
+  /**
+   * Specifies the oldest date allowed where:
+   *
+   * @param value - The oldest date allowed.
+   * @param options - Options for this check.
+   * @param options.inclusive - Whether the date is inclusive or not.
+   * Defaults to `true`.
+   * @param options.message - The error message to use.
+   */
+  min(
+    value: DateDataInput,
+    options?: { readonly inclusive?: boolean; readonly message?: string }
+  ): TDate<S> {
+    return this._addCheck('min', {
+      value,
+      inclusive: options?.inclusive ?? true,
+      message: options?.message,
+    })._removeChecks(['range'])
+  }
+
+  /**
+   * Shorthand for `min(value, { inclusive: false })`.
+   *
+   * @see {@link min | `min`}
+   */
+  after(
+    value: DateDataInput,
+    options?: { readonly message?: string }
+  ): TDate<S> {
+    return this.min(value, { inclusive: false, message: options?.message })
+  }
+
+  /**
+   * Shorthand for `min(value, { inclusive: true })`.
+   *
+   * @see {@link min | `min`}
+   */
+  sameOrAfter(
+    value: DateDataInput,
+    options?: { readonly message?: string }
+  ): TDate<S> {
+    return this.min(value, { inclusive: true, message: options?.message })
+  }
+
+  /**
+   * Specifies the latest date allowed where:
+   *
+   * @param value - The latest date allowed.
+   * @param options - Options for this check.
+   * @param options.inclusive - Whether the date is inclusive or not.
+   * Defaults to `true`.
+   * @param options.message - The error message to use.
+   */
+  max(
+    value: DateDataInput,
+    options?: { readonly inclusive?: boolean; readonly message?: string }
+  ): TDate<S> {
+    return this._addCheck('max', {
+      value,
+      inclusive: options?.inclusive ?? true,
+      message: options?.message,
+    })._removeChecks(['range'])
+  }
+
+  /**
+   * Shorthand for `max(value, { inclusive: false })`.
+   *
+   * @see {@link max | `max`}
+   */
+  before(
+    value: DateDataInput,
+    options?: { readonly message?: string }
+  ): TDate<S> {
+    return this.max(value, { inclusive: false, message: options?.message })
+  }
+
+  /**
+   * Shorthand for `max(value, { inclusive: true })`.
+   *
+   * @see {@link max | `max`}
+   */
+  sameOrBefore(
+    value: DateDataInput,
+    options?: { readonly message?: string }
+  ): TDate<S> {
+    return this.max(value, { inclusive: true, message: options?.message })
+  }
+
+  /**
+   * Specifies a range of dates where:
+   *
+   * @param min - The oldest date allowed.
+   * @param max - The latest date allowed.
+   * @param options - Options for this check.
+   * @param options.inclusive - Whether the dates in the range are inclusive or not.
+   * Defaults to `'both'`.
+   * * `'min'` - Only the `min` value is inclusive in the range.
+   * * `'max'` - Only the `max` value is inclusive in the range.
+   * * `'both'` - Both the `min` and the `max` values are inclusive in the range.
+   * * `'none'` - Neither the `min` or the `max` values are inclusive in the range.
+   * @param options.message - The error message to use.
+   */
+  range(
+    min: DateDataInput,
+    max: DateDataInput,
+    options?: {
+      readonly inclusive?: 'min' | 'max' | 'both' | 'none'
+      readonly message?: string
+    }
+  ): TDate<S> {
+    return this._addCheck('range', {
+      min,
+      max,
+      inclusive: options?.inclusive ?? 'both',
+      message: options?.message,
+    })._removeChecks(['min', 'max'])
+  }
+
+  /**
+   * Alias for {@link range | `range`}.
+   */
+  between(
+    min: DateDataInput,
+    max: DateDataInput,
+    options?: {
+      readonly inclusive?: 'min' | 'max' | 'both' | 'none'
+      readonly message?: string
+    }
+  ): TDate<S> {
+    return this.range(min, max, options)
+  }
+
+  static create = (): TDate<{ coerce: false }> =>
+    new TDate({ typeName: TTypeName.Date, checks: [], coerce: false })
 }
 
 /* -------------------------------------------------------------------------- */
