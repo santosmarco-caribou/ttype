@@ -21,15 +21,19 @@ export namespace utils {
   export type Class = abstract new (...args: readonly any[]) => any
   export type AnyFunction = ((...args: readonly any[]) => any) | Class
   export type Equals<T, U> = (<X>() => X extends T ? 1 : 0) extends <Y>() => Y extends U ? 1 : 0 ? 1 : 0
+  export type Or<T extends readonly [0 | 1, 0 | 1, ...(0 | 1)[]]> = 1 extends T[number] ? 1 : 0
   export type Defined<T> = T extends undefined ? never : T
   export type Simplify<T> = T extends _internals.BuiltIn | AnyTType ? T : { 0: { [K in keyof T]: Simplify<T[K]> }; 1: T }[Equals<T, unknown>]
   export type Literalized<T extends Primitive = Primitive> = T extends string ? `"${T}"` : T extends number | boolean | null | undefined ? `${T}` : T extends bigint ? `${T}n` : 'symbol'
-  export type RequiredFilter<T, K extends keyof T> = undefined extends T[K] ? (T[K] extends undefined ? K : never) : K
-  export type OptionalFilter<T, K extends keyof T> = undefined extends T[K] ? (T[K] extends undefined ? never : K) : never
-  export type EnforceOptional<T> = { [K in keyof T as RequiredFilter<T, K>]: T[K] } & { [K in keyof T as OptionalFilter<T, K>]?: Exclude<T[K], undefined> }
+  export type ReplaceAll<T, From extends string, To extends string> = T extends `${infer A}${From}${infer B}` ? `${A}${To}${ReplaceAll<B, From, To>}` : T
+  export type OptionalKeys<T> = { [K in keyof T]: undefined extends T[K] ? K : never }[keyof T]
+  export type RequiredKeys<T> = { [K in keyof T]: undefined extends T[K] ? never : K }[keyof T]
+  export type EnforceOptional<T> = Partial<Pick<T, OptionalKeys<T>>> & Pick<T, RequiredKeys<T>>
   export type Merge<A, B> = Omit<A, keyof B> & B
   // eslint-disable-next-line @typescript-eslint/ban-types
   export type OmitIndexSignature<T> = { [K in keyof T as {} extends Record<K, unknown> ? never : K]: T[K] }
+  // eslint-disable-next-line @typescript-eslint/ban-types
+  export type PickIndexSignature<T> = { [K in keyof T as {} extends Record<K, unknown> ? K : never]: T[K] }
   export type LiteralUnion<T, U extends Primitive> = T | (U & Record<never, never>)
   export type UnionToIntersection<T> = (T extends unknown ? (x: T) => void : never) extends (i: infer I) => void ? I : never
   export type GetLastOfUnion<T> = ((T extends unknown ? (x: () => T) => void : never) extends (i: infer I) => void ? I : never) extends () => infer Last ? Last : never
@@ -46,9 +50,33 @@ export namespace utils {
     `${T['label'] extends string ? `"${T['label']}"` : 'Input value'} must be ${Sign} ${U['label'] extends string ? `"${U['label']}" (${U['value']})` : U['value']}; got ${T['value']}`
   >
 
+  /* ---------------------------------------------------------------- State --------------------------------------------------------------- */
+  export type MinMaxState = { min: number; max: number }
+  export type MinMaxInitialState = { min: 0; max: PositiveInfinity }
+  export type ComputeNextMinMaxState<CurrState extends MinMaxState, Method extends keyof MinMaxState, Value extends number, Inclusive extends boolean> = Simplify<
+    Merge<
+      CurrState,
+      { [K in Method]: { 0: Value; 1: { min: N.Add<Value, 1>; max: N.Sub<Value, 1> }[K] }[Equals<Inclusive, false>] } & {
+        [K in Exclude<keyof MinMaxState, Method>]: { 0: CurrState[K]; 1: MinMaxInitialState[K] }[Equals<CurrState['min'], CurrState['max']>]
+      }
+    >
+  >
+  export type $ValidateMinMax<CurrState extends MinMaxState, Method extends keyof MinMaxState, Value extends number, Inclusive extends boolean> = [
+    ...$ValidateNonNegativeInteger<{ 0: Value; 1: { min: N.Add<Value, 1>; max: N.Sub<Value, 1> }[Method] }[Equals<Inclusive, false>]>,
+    ...{
+      0: $ValidateAgainstNumeric<
+        { value: { 0: Value; 1: { min: N.Add<Value, 1>; max: N.Sub<Value, 1> }[Method] }[Equals<Inclusive, false>]; label: Method },
+        { min: '<='; max: '>=' }[Method],
+        { value: CurrState[Exclude<keyof MinMaxState, Method>]; label: Exclude<keyof MinMaxState, Method> }
+      >
+      1: []
+    }[Or<[Equals<CurrState[Method], CurrState[Exclude<keyof MinMaxState, Method>]>, Equals<CurrState[Exclude<keyof MinMaxState, Method>], { min: PositiveInfinity; max: 0 }[Method]>]>]
+  ]
+
   /* ------------------------------------------------------------- Type guards ------------------------------------------------------------ */
   export const isObject = (value: unknown): value is Record<string, unknown> => isPlainObject(value)
   export const isPrimitive = (value: unknown): value is Primitive => value === null || ['string', 'number', 'bigint', 'boolean', 'symbol', 'undefined'].includes(typeof value)
+  export const isDefined = <T>(value: T): value is Defined<T> => value !== undefined
 
   /* --------------------------------------------------------------- Strings -------------------------------------------------------------- */
   export const literalize = <T extends Primitive>(value: T) => {
@@ -61,6 +89,9 @@ export namespace utils {
       return 'symbol'
     })() as Literalized<T>
   }
+  export const replaceAll = <T extends string, From extends string, To extends string>(str: T, from: From, to: To) => str.split(from).join(to) as ReplaceAll<T, From, To>
+  export const pluralize = (word: string, count: number) => `${word}${count < 0 ? '(s)' : count <= 1 ? '' : 's'}`
+  export const intToLiteral = (int: number) => (int === 0 ? 'zero' : int === 1 ? 'one' : `${int}`)
 
   /* --------------------------------------------------------------- Arrays --------------------------------------------------------------- */
   export const includes = <T>(arr: readonly T[], item: unknown): item is T => [item, ...arr].slice(1).includes(item)
@@ -101,5 +132,6 @@ export namespace utils {
       ? T[]
       : ConstructTuple<T, L, [..._Acc, T]>
     export type UnionToTuple<T, _Acc extends readonly unknown[] = []> = [T] extends [never] ? readonly [..._Acc] : UnionToTuple<Exclude<T, GetLastOfUnion<T>>, readonly [GetLastOfUnion<T>, ..._Acc]>
+    export type BaseKeyFilter<T, K extends keyof T> = K extends symbol ? never : T[K] extends symbol ? never : [AnyFunction] extends [T[K]] ? never : K
   }
 }

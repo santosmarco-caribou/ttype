@@ -1,10 +1,10 @@
+/* eslint-disable no-undef */
+
 /** @type {import('ts-jest').JestConfigWithTsJest} */
 module.exports = {
-  preset: 'ts-jest',
   testEnvironment: 'node',
-  globals: {
-    'ts-jest': {
-      diagnostics: false,
-    },
+  roots: ['<rootDir>/__test__/'],
+  transform: {
+    '\\.ts$': ['ts-jest', { diagnostics: false }],
   },
 }

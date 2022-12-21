@@ -1,5 +1,6 @@
-import { TError } from './error'
-import { IssueKind, type Issue } from './issues'
+import { DEFAULT_ERROR_MAP, ErrorMap, TError, resolveErrorMap } from './error'
+import { TGlobal } from './global'
+import { IssueKind, NoMsgIssue, type Issue } from './issues'
 import type { AnyTType } from './types'
 import { utils } from './utils'
 
@@ -52,6 +53,7 @@ export enum ParseStatus {
 
 export interface ParseOptions {
   readonly abortEarly?: boolean
+  readonly errorMap?: ErrorMap
 }
 
 export interface ParseContextCommon extends ParseOptions {
@@ -210,13 +212,25 @@ export class ParseContext<D = unknown, O = unknown, I = O> {
     const issue = {
       kind,
       payload: payload,
-      input: { data: this.data, type: this.dataType },
+      input: { data: this.data, parsedType: this.dataType },
       path: this.path,
-      typeName: this.ttype.typeName,
-      typeHint: this.ttype.hint,
-    }
+      type: this.ttype,
+    } as NoMsgIssue
 
-    const issueMessage = message ?? 'Invalid'
+    const issueMessage =
+      message ??
+      [
+        this.common.errorMap,
+        this.ttype.options.errorMap,
+        TGlobal.getErrorMap(),
+        DEFAULT_ERROR_MAP,
+      ]
+        .filter(utils.isDefined)
+        .reverse()
+        .reduce(
+          (msg, map) => resolveErrorMap(map)(issue, { defaultMessage: msg }),
+          ''
+        )
 
     this._def.ownIssues.push({ ...issue, message: issueMessage } as Issue)
 
@@ -272,6 +286,10 @@ export class ParseContext<D = unknown, O = unknown, I = O> {
 
   INVALID_UNION(payload: { errors: readonly TError[] }) {
     return this.DIRTY(IssueKind.InvalidUnion, { unionErrors: payload.errors })
+  }
+
+  INVALID_INTERSECTION() {
+    return this.DIRTY(IssueKind.InvalidIntersection)
   }
 
   INVALID_INSTANCE(payload: { readonly expected: string }): this {
@@ -341,13 +359,13 @@ export enum TParsedType {
   Date = 'Date',
   EnumValue = 'string | number',
   False = 'false',
-  Function = 'Function',
+  Function = 'function',
   Map = 'Map',
   NaN = 'NaN',
   Null = 'null',
   Number = 'number',
   Object = 'object',
-  Primitive = 'string | number | bigint | boolean | symbol | undefined | null',
+  Primitive = 'string | number | bigint | boolean | symbol | null | undefined',
   Promise = 'Promise',
   RegExp = 'RegExp',
   Set = 'Set',

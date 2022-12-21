@@ -9,14 +9,18 @@ describe('TDate', () => {
     const numberCoercion = t.date().coerce('numbers')
 
     expect(noCoercion.safeParse('2020-01-01').ok).toBe(false)
+    expect(noCoercion.safeParse(new Date().getTime()).ok).toBe(false)
+
     expect(fullCoercion.safeParse('2020-01-01').ok).toBe(true)
     expect(fullCoercion.safeParse('2020-01-01').data).toBeInstanceOf(Date)
+    expect(fullCoercion.safeParse(new Date().getTime()).ok).toBe(true)
+    expect(fullCoercion.safeParse(new Date().getTime()).data).toBeInstanceOf(Date)
+
     expect(stringCoercion.safeParse('2020-01-01').ok).toBe(true)
     expect(stringCoercion.safeParse('2020-01-01').data).toBeInstanceOf(Date)
+
     expect(numberCoercion.safeParse(new Date().getTime()).ok).toBe(true)
-    expect(numberCoercion.safeParse(new Date().getTime()).data).toBeInstanceOf(
-      Date
-    )
+    expect(numberCoercion.safeParse(new Date().getTime()).data).toBeInstanceOf(Date)
 
     assertEqual<t.input<typeof noCoercion>, Date>(true)
     assertEqual<t.input<typeof fullCoercion>, Date | string | number>(true)

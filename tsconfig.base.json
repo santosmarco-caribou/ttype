@@ -17,5 +17,6 @@
     "strictPropertyInitialization": false,
     "target": "es2018"
   },
-  "include": ["src/**/*.ts"]
+  "include": ["src"],
+  "exclude": ["node_modules", "lib"]
 }

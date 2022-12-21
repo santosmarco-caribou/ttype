@@ -17,6 +17,7 @@
   ],
   "rules": {
     "no-case-declarations": "off",
+    "no-fallthrough": "off",
     "@typescript-eslint/no-explicit-any": "off",
     "@typescript-eslint/no-unused-vars": [
       "error",
@@ -26,7 +27,7 @@
   },
   "overrides": [
     {
-      "files": ["__test__/**/*.ts"],
+      "files": ["__test__/**/*", "jest.config.js"],
       "parserOptions": {
         "project": "./tsconfig.test.json"
       }
