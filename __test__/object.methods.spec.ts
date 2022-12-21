@@ -138,13 +138,10 @@ describe('TObject :: methods', () => {
 
     test('inference', () => {
       assertEqual<typeof keyofA['values'], readonly ['a', 'b', 'c']>(true)
-      assertEqual<typeof keyofB['values'], readonly ['d', 'e', 'f', 'g', 'h']>(
+      assertEqual<typeof keyofB['values'], readonly ['d', 'e', 'f', 'g', 'h']>(true)
+      assertEqual<typeof keyofA['enum'], { readonly a: 'a'; readonly b: 'b'; readonly c: 'c' }>(
         true
       )
-      assertEqual<
-        typeof keyofA['enum'],
-        { readonly a: 'a'; readonly b: 'b'; readonly c: 'c' }
-      >(true)
       assertEqual<
         typeof keyofB['enum'],
         {

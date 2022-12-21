@@ -20,24 +20,12 @@ export interface FailedParseResult<O = unknown, I = O> {
   readonly error: TError<O, I>
 }
 
-export type SyncParseResult<O = unknown, I = O> =
-  | SuccessfulParseResult<O>
-  | FailedParseResult<O, I>
-export type AsyncParseResult<O = unknown, I = O> = Promise<
-  SyncParseResult<O, I>
->
-export type ParseResult<O = unknown, I = O> =
-  | SyncParseResult<O, I>
-  | AsyncParseResult<O, I>
+export type SyncParseResult<O = unknown, I = O> = SuccessfulParseResult<O> | FailedParseResult<O, I>
+export type AsyncParseResult<O = unknown, I = O> = Promise<SyncParseResult<O, I>>
+export type ParseResult<O = unknown, I = O> = SyncParseResult<O, I> | AsyncParseResult<O, I>
 
-export type SyncParseResultOf<T extends AnyTType> = SyncParseResult<
-  T['_O'],
-  T['_I']
->
-export type AsyncParseResultOf<T extends AnyTType> = AsyncParseResult<
-  T['_O'],
-  T['_I']
->
+export type SyncParseResultOf<T extends AnyTType> = SyncParseResult<T['_O'], T['_I']>
+export type AsyncParseResultOf<T extends AnyTType> = AsyncParseResult<T['_O'], T['_I']>
 export type ParseResultOf<T extends AnyTType> = ParseResult<T['_O'], T['_I']>
 
 /* -------------------------------------------------------------------------- */
@@ -120,9 +108,7 @@ export class ParseContext<D = unknown, O = unknown, I = O> {
   }
 
   get allChildren(): readonly ParseContext[] {
-    return this.ownChildren.concat(
-      this.ownChildren.flatMap((child) => child.allChildren)
-    )
+    return this.ownChildren.concat(this.ownChildren.flatMap((child) => child.allChildren))
   }
 
   get ownIssues(): readonly Issue[] {
@@ -130,14 +116,10 @@ export class ParseContext<D = unknown, O = unknown, I = O> {
   }
 
   get allIssues(): readonly Issue[] {
-    return this.ownIssues.concat(
-      this.allChildren.flatMap((child) => child.allIssues)
-    )
+    return this.ownIssues.concat(this.allChildren.flatMap((child) => child.allIssues))
   }
 
-  child<D_, O_, I_>(
-    def: ParseContextChildDef<D_, O_, I_>
-  ): ParseContext<D_, O_, I_> {
+  child<D_, O_, I_>(def: ParseContextChildDef<D_, O_, I_>): ParseContext<D_, O_, I_> {
     const { type, data, path } = def
     const child = new ParseContext({
       type,
@@ -171,8 +153,7 @@ export class ParseContext<D = unknown, O = unknown, I = O> {
 
   isValid(): boolean {
     return (
-      this._def.status === ParseStatus.Valid &&
-      this.allChildren.every((child) => child.isValid())
+      this._def.status === ParseStatus.Valid && this.allChildren.every((child) => child.isValid())
     )
   }
 
@@ -219,18 +200,10 @@ export class ParseContext<D = unknown, O = unknown, I = O> {
 
     const issueMessage =
       message ??
-      [
-        this.common.errorMap,
-        this.type.options.errorMap,
-        TGlobal.getErrorMap(),
-        DEFAULT_ERROR_MAP,
-      ]
+      [this.common.errorMap, this.type.options.errorMap, TGlobal.getErrorMap(), DEFAULT_ERROR_MAP]
         .filter(utils.isDefined)
         .reverse()
-        .reduce(
-          (msg, map) => resolveErrorMap(map)(issue, { defaultMessage: msg }),
-          ''
-        )
+        .reduce((msg, map) => resolveErrorMap(map)(issue, { defaultMessage: msg }), '')
 
     this._def.ownIssues.push({ ...issue, message: issueMessage } as Issue)
 
@@ -349,11 +322,7 @@ export class ParseContext<D = unknown, O = unknown, I = O> {
   }
 }
 
-export type ParseContextOf<T extends AnyTType> = ParseContext<
-  unknown,
-  T['_O'],
-  T['_I']
->
+export type ParseContextOf<T extends AnyTType> = ParseContext<unknown, T['_O'], T['_I']>
 
 /* -------------------------------------------------------------------------- */
 /*                                 ParsedType                                 */

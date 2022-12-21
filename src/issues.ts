@@ -1,12 +1,6 @@
 import type { TError } from './error'
 import type { ParsePath, TParsedType } from './parse'
-import type {
-  AnyTType,
-  TArrayCheck,
-  TDateCheck,
-  TSetCheck,
-  TTupleCheck,
-} from './types'
+import type { AnyTType, TArrayCheck, TDateCheck, TSetCheck, TTupleCheck } from './types'
 import type { utils } from './utils'
 
 export enum IssueKind {

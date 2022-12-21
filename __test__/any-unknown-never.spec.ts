@@ -84,9 +84,7 @@ describe('TNever', () => {
     expect(Never.safeParse(BigInt(1)).error?.issues).toHaveLength(1)
     expect(Never.safeParse(BigInt(1)).error?.issues[0].kind).toBe('forbidden')
     expect(Never.safeParse(Symbol('foo')).error?.issues).toHaveLength(1)
-    expect(Never.safeParse(Symbol('foo')).error?.issues[0].kind).toBe(
-      'forbidden'
-    )
+    expect(Never.safeParse(Symbol('foo')).error?.issues[0].kind).toBe('forbidden')
   })
 
   test('inference', () => {

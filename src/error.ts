@@ -65,10 +65,7 @@ export const DEFAULT_ERROR_MAP: ErrorMapFn = (issue) => {
     params: {
       typeName: 'Array' | 'Set' | 'Tuple'
       value: number
-    } & (
-      | { kind: 'min' | 'max'; inclusive: boolean }
-      | { kind: 'len' | 'size'; inclusive?: never }
-    )
+    } & ({ kind: 'min' | 'max'; inclusive: boolean } | { kind: 'len' | 'size'; inclusive?: never })
   ) =>
     `${params.typeName} must contain ${
       params.inclusive
@@ -79,10 +76,7 @@ export const DEFAULT_ERROR_MAP: ErrorMapFn = (issue) => {
             len: 'exactly',
             size: 'exactly',
           }[params.kind]
-    } ${utils.intToLiteral(params.value)} ${utils.pluralize(
-      'element',
-      params.value
-    )}`
+    } ${utils.intToLiteral(params.value)} ${utils.pluralize('element', params.value)}`
 
   switch (issue.kind) {
     case IssueKind.Required:
@@ -115,13 +109,9 @@ export const DEFAULT_ERROR_MAP: ErrorMapFn = (issue) => {
           } ${issue.payload.value}`
         case 'range':
           return `Date must be between ${issue.payload.min} (${
-            ['min', 'both'].includes(issue.payload.inclusive)
-              ? 'inclusive'
-              : 'exclusive'
+            ['min', 'both'].includes(issue.payload.inclusive) ? 'inclusive' : 'exclusive'
           }) and ${issue.payload.max} (${
-            ['max', 'both'].includes(issue.payload.inclusive)
-              ? 'inclusive'
-              : 'exclusive'
+            ['max', 'both'].includes(issue.payload.inclusive) ? 'inclusive' : 'exclusive'
           })`
       }
     case IssueKind.InvalidSet:

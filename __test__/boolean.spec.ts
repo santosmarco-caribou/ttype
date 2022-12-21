@@ -7,12 +7,8 @@ describe('TBoolean', () => {
     const falseArgCoercion = t.boolean().coerce(false)
     const truthyValuesCoercion = t.boolean().coerce({ true: ['yes'] })
     const falsyValuesCoercion = t.boolean().coerce({ false: ['no'] })
-    const truthyAndFalsyValuesCoercion = t
-      .boolean()
-      .coerce({ true: ['yes'], false: ['no'] })
-    const truthyValueWithTrueCoercion = t
-      .boolean()
-      .coerce({ true: ['yes', true] })
+    const truthyAndFalsyValuesCoercion = t.boolean().coerce({ true: ['yes'], false: ['no'] })
+    const truthyValueWithTrueCoercion = t.boolean().coerce({ true: ['yes', true] })
     const truthy = ['yes', 'y', 1] as const
     const usingTruthy = t.boolean().truthy(truthy)
     const falsy = ['no', 'n', 0] as const
@@ -47,18 +43,11 @@ describe('TBoolean', () => {
       assertEqual<t.input<typeof falseArgCoercion>, boolean>(true)
       assertEqual<t.input<typeof truthyValuesCoercion>, 'yes'>(true)
       assertEqual<t.input<typeof falsyValuesCoercion>, 'no'>(true)
-      assertEqual<t.input<typeof truthyAndFalsyValuesCoercion>, 'yes' | 'no'>(
-        true
-      )
-      assertEqual<t.input<typeof truthyValueWithTrueCoercion>, 'yes' | true>(
-        true
-      )
+      assertEqual<t.input<typeof truthyAndFalsyValuesCoercion>, 'yes' | 'no'>(true)
+      assertEqual<t.input<typeof truthyValueWithTrueCoercion>, 'yes' | true>(true)
       assertEqual<t.input<typeof usingTruthy>, 'yes' | 'y' | 1>(true)
       assertEqual<t.input<typeof usingFalsy>, 'no' | 'n' | 0>(true)
-      assertEqual<
-        t.input<typeof usingTruthyAndFalsy>,
-        'yes' | 'y' | 1 | 'no' | 'n' | 0
-      >(true)
+      assertEqual<t.input<typeof usingTruthyAndFalsy>, 'yes' | 'y' | 1 | 'no' | 'n' | 0>(true)
     })
   })
 })

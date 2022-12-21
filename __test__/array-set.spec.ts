@@ -4,9 +4,7 @@ import { assertEqual } from './_utils'
 describe('TArray', () => {
   test('passes', () => {
     expect(t.array(t.any()).safeParse(['John']).ok).toBe(true)
-    expect(
-      t.array(t.bigint()).safeParse([BigInt(1), BigInt(2), BigInt(3)]).ok
-    ).toBe(true)
+    expect(t.array(t.bigint()).safeParse([BigInt(1), BigInt(2), BigInt(3)]).ok).toBe(true)
     expect(t.array(t.boolean()).safeParse([true, false]).ok).toBe(true)
     expect(t.boolean().array().safeParse([true, false]).ok).toBe(true)
   })
@@ -25,22 +23,16 @@ describe('TArray', () => {
           .min(2)
           .safeParse([BigInt(1), BigInt(2), BigInt(3)]).ok
       ).toBe(true)
-      expect(() =>
-        t.array(t.bigint()).min(0, { inclusive: false }).parse([])
-      ).toThrow()
+      expect(() => t.array(t.bigint()).min(0, { inclusive: false }).parse([])).toThrow()
     })
 
     test('max', () => {
       expect(t.array(t.boolean()).max(2).safeParse([true, false]).ok).toBe(true)
-      expect(() =>
-        t.array(t.boolean()).max(2, { inclusive: false }).parse([true, false])
-      ).toThrow()
+      expect(() => t.array(t.boolean()).max(2, { inclusive: false }).parse([true, false])).toThrow()
     })
 
     test('length', () => {
-      expect(t.array(t.boolean()).length(2).safeParse([true, false]).ok).toBe(
-        true
-      )
+      expect(t.array(t.boolean()).length(2).safeParse([true, false]).ok).toBe(true)
       expect(() =>
         t
           .array(t.bigint())
@@ -159,9 +151,7 @@ describe('TArray', () => {
 describe('TSet', () => {
   test('passes', () => {
     expect(t.set(t.any()).safeParse(new Set(['John'])).ok).toBe(true)
-    expect(
-      t.set(t.bigint()).safeParse(new Set([BigInt(1), BigInt(2), BigInt(3)])).ok
-    ).toBe(true)
+    expect(t.set(t.bigint()).safeParse(new Set([BigInt(1), BigInt(2), BigInt(3)])).ok).toBe(true)
     expect(t.set(t.boolean()).safeParse(new Set([true, false])).ok).toBe(true)
   })
 
@@ -179,9 +169,7 @@ describe('TSet', () => {
           .min(2)
           .safeParse(new Set([BigInt(1), BigInt(2), BigInt(3)])).ok
       ).toBe(true)
-      expect(() =>
-        t.set(t.bigint()).min(0, { inclusive: false }).parse(new Set([]))
-      ).toThrow()
+      expect(() => t.set(t.bigint()).min(0, { inclusive: false }).parse(new Set([]))).toThrow()
     })
 
     test('max', () => {
