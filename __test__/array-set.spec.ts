@@ -139,9 +139,9 @@ describe('TSet', () => {
   })
 
   test('fails', () => {
-    expect(() => t.set(t.any()).parse('John')).toThrow()
-    expect(() => t.set(t.bigint()).parse([1, 2, 3])).toThrow()
-    expect(() => t.set(t.boolean()).parse(['true'])).toThrow()
+    expect(() => t.set(t.any()).parse('Michael')).toThrow()
+    expect(() => t.set(t.bigint()).parse(new Set([1, 2, 3]))).toThrow()
+    expect(() => t.set(t.boolean()).parse(new Set(['true']))).toThrow()
   })
 
   describe('checks', () => {
@@ -152,7 +152,7 @@ describe('TSet', () => {
           .min(2)
           .safeParse(new Set([BigInt(1), BigInt(2), BigInt(3)])).ok
       ).toBe(true)
-      expect(() => t.set(t.bigint()).min(0, { inclusive: false }).parse([])).toThrow()
+      expect(() => t.set(t.bigint()).min(0, { inclusive: false }).parse(new Set([]))).toThrow()
     })
 
     test('max', () => {
@@ -162,7 +162,12 @@ describe('TSet', () => {
           .max(2)
           .safeParse(new Set([true, false])).ok
       ).toBe(true)
-      expect(() => t.set(t.boolean()).max(2, { inclusive: false }).parse([true, false])).toThrow()
+      expect(() =>
+        t
+          .set(t.boolean())
+          .max(2, { inclusive: false })
+          .parse(new Set([true, false]))
+      ).toThrow()
     })
 
     test('size', () => {
@@ -176,13 +181,13 @@ describe('TSet', () => {
         t
           .set(t.bigint())
           .size(2)
-          .parse([BigInt(1)])
+          .parse(new Set([BigInt(1)]))
       ).toThrow()
       expect(() =>
         t
           .set(t.bigint())
           .size(2)
-          .parse([BigInt(1), BigInt(2), BigInt(3)])
+          .parse(new Set([BigInt(1), BigInt(2), BigInt(3)]))
       ).toThrow()
     })
 
