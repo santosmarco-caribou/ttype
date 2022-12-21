@@ -1,3 +1,5 @@
+/* eslint-disable @typescript-eslint/ban-types */
+
 import _cloneDeep from 'clone-deep'
 import _dayjs from 'dayjs'
 import isBetween from 'dayjs/plugin/isBetween'
@@ -33,14 +35,17 @@ export namespace utils {
     ? `${T[0]}${D}${Join<Rest, D>}`
     : string
   export type ReplaceAll<T, From extends string, To extends string> = T extends `${infer A}${From}${infer B}` ? `${A}${To}${ReplaceAll<B, From, To>}` : T
+  export type Values<T> = T[keyof T]
+  export type Entries<T> = Simplify<{ [K in keyof T]: [K, T[K]] }[keyof T][]>
+  export type FromEntries<T extends readonly [key: PropertyKey, value: unknown]> = Simplify<{ [K in T[0]]: Extract<T, [K, unknown]>[1] }>
   export type OptionalKeys<T> = { [K in keyof T]: undefined extends T[K] ? K : never }[keyof T]
   export type RequiredKeys<T> = { [K in keyof T]: undefined extends T[K] ? never : K }[keyof T]
   export type EnforceOptional<T> = Partial<Pick<T, OptionalKeys<T>>> & Pick<T, RequiredKeys<T>>
+  export type Diff<A, B> = Omit<A, keyof B> & Omit<B, keyof A>
   export type Merge<A, B> = Omit<A, keyof B> & B
-  // eslint-disable-next-line @typescript-eslint/ban-types
   export type OmitIndexSignature<T> = { [K in keyof T as {} extends Record<K, unknown> ? never : K]: T[K] }
-  // eslint-disable-next-line @typescript-eslint/ban-types
   export type PickIndexSignature<T> = { [K in keyof T as {} extends Record<K, unknown> ? K : never]: T[K] }
+  export type FixEmptyObject<T> = { 0: T; 1: Record<string, never> }[Equals<T, {}>]
   export type LiteralUnion<T, U extends Primitive> = T | (U & Record<never, never>)
   export type UnionToIntersection<T> = (T extends unknown ? (x: T) => void : never) extends (i: infer I) => void ? I : never
   export type GetLastOfUnion<T> = ((T extends unknown ? (x: () => T) => void : never) extends (i: infer I) => void ? I : never) extends () => infer Last ? Last : never
@@ -85,6 +90,7 @@ export namespace utils {
   export const isObject = (value: unknown): value is Record<string, unknown> => isPlainObject(value)
   export const isPrimitive = (value: unknown): value is Primitive => value === null || ['string', 'number', 'bigint', 'boolean', 'symbol', 'undefined'].includes(typeof value)
   export const isDefined = <T>(value: T): value is Defined<T> => value !== undefined
+  export const isArray = <T>(value: T): value is Extract<T, readonly unknown[]> => Array.isArray(value)
 
   /* --------------------------------------------------------------- Strings -------------------------------------------------------------- */
   export const literalize = <T extends Primitive>(value: T) => {
@@ -108,9 +114,14 @@ export namespace utils {
   /* --------------------------------------------------------------- Objects -------------------------------------------------------------- */
   export const cloneDeep = _cloneDeep
   export const mergeDeep = _mergeDeep
-  export const merge = <A, B>(a: A, b: B) => ({ ...cloneDeep(a), ...cloneDeep(b) } as Merge<A, B>)
-  export const pick = <T extends object, K extends keyof T>(object: T, keys: readonly K[]) => Object.fromEntries(Object.entries(object).filter(([key]) => includes(keys, key))) as Pick<T, K>
-  export const omit = <T extends object, K extends keyof T>(object: T, keys: readonly K[]) => Object.fromEntries(Object.entries(object).filter(([key]) => !includes(keys, key))) as Omit<T, K>
+  export const keys = <T extends object>(obj: T) => Object.keys(obj) as (keyof T)[]
+  export const entries = <T extends object>(obj: T) => Object.entries(obj) as Entries<T>
+  export const values = <T extends object>(obj: T) => Object.values(obj) as Values<T>[]
+  export const fromEntries = <K extends PropertyKey, T extends readonly [K, unknown][]>(entries: T) => Object.fromEntries(entries) as FromEntries<T[number]>
+  export const diff = <A extends object, B extends object>(a: A, b: B) => ({ ...omit(a, Object.keys(b) as (keyof A)[]), ...omit(b, Object.keys(a) as (keyof B)[]) } as Diff<A, B>)
+  export const merge = <A extends object, B extends object>(a: A, b: B) => ({ ...cloneDeep(a), ...cloneDeep(b) } as Merge<A, B>)
+  export const pick = <T extends object, K extends keyof T>(obj: T, keys: readonly K[]) => Object.fromEntries(entries(obj).filter(([k]) => includes(keys, k))) as Pick<T, K>
+  export const omit = <T extends object, K extends keyof T>(obj: T, keys: readonly K[]) => Object.fromEntries(entries(obj).filter(([k]) => !includes(keys, k))) as Omit<T, K>
 
   /* ---------------------------------------------------------------- Dates --------------------------------------------------------------- */
   _dayjs.extend(isSameOrBefore)
