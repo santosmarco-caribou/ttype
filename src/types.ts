@@ -19,7 +19,6 @@ import {
   type SyncParseResult,
   type SyncParseResultOf,
 } from './parse'
-import { show } from './show'
 import { utils } from './utils'
 
 export interface CreateOptions {
@@ -1023,7 +1022,7 @@ export interface TEnumDef<T extends EnumLike> extends TDef {
 }
 
 export class TEnum<T extends EnumLike> extends TType<T[keyof T], TEnumDef<T>> {
-  readonly hint = show.enum(this.values)
+  readonly hint = this.values.map(utils.literalize).join(' | ')
 
   _parse(ctx: ParseContextOf<this>): ParseResultOf<this> {
     const enumTypes = [
@@ -1611,7 +1610,19 @@ export class TArray<
   T extends AnyTType,
   S extends TArrayState = TArrayInitialState
 > extends TType<TArrayIO<T, S, '_O'>, TArrayDef<T>, TArrayIO<T, S, '_I'>> {
-  readonly hint = show.array(this.element)
+  get hint() {
+    const needsParens = this.element.isType(
+      TTypeName.Tuple,
+      TTypeName.Enum,
+      TTypeName.Union,
+      TTypeName.Optional,
+      TTypeName.Nullable
+    )
+
+    return `${needsParens ? '(' : ''}${this.element.hint}${
+      needsParens ? ')' : ''
+    }[]`
+  }
 
   _parse(ctx: ParseContextOf<this>): ParseResultOf<this> {
     if (!Array.isArray(ctx.data)) {
@@ -2032,7 +2043,9 @@ export class TTuple<
   T extends TTupleItems,
   R extends TTupleRest | null
 > extends TType<TTupleIO<T, R, '_O'>, TTupleDef<T, R>, TTupleIO<T, R, '_I'>> {
-  readonly hint = show.tuple(this.items, this.restType)
+  readonly hint = `readonly [${this.items.map((i) => i.hint).join(', ')}${
+    this.restType ? `, ...${this.restType.array().hint}` : ''
+  }]`
 
   _parse(ctx: ParseContextOf<this>): ParseResultOf<this> {
     if (!Array.isArray(ctx.data)) {
@@ -2489,11 +2502,17 @@ export class TObject<
   TObjectDef<S, UK, C>,
   TObjectIO<S, UK, C, '_I'>
 > {
-  readonly hint = show.object(
-    this.shape,
-    this._def.unknownKeys,
-    this._def.catchall
-  )
+  readonly hint = `{ ${Object.entries(this.shape)
+    .map(([k, v]) => `${k}${v.isOptional() ? '?' : ''}: ${v.hint}`)
+    .join(', ')} }${
+    this._def.catchall ||
+    utils.includes(['passthrough', 'strict'], this._def.unknownKeys)
+      ? ` & { [x: string]: ${
+          this._def.catchall?.hint ??
+          (this._def.unknownKeys === 'passthrough' ? 'unknown' : 'never')
+        } }`
+      : ''
+  }`
 
   _parse(ctx: ParseContextOf<this>): ParseResultOf<this> {
     if (!utils.isObject(ctx.data)) {
@@ -2813,13 +2832,13 @@ export class TFunction<A extends AnyTTuple, R extends AnyTType> extends TType<
   TFunctionDef<A, R>,
   TFunctionInnerIO<A, R>
 > {
-  readonly hint: TFunctionHint<A, R> = `(${this.parameters.items
+  readonly hint = `(${this.parameters.items
     .map((i, idx) => `args_${idx}: ${i.hint}`)
     .join(', ')}${
     this.parameters.restType
       ? `, ...args_${this.parameters.items.length}: ${this.parameters.restType.hint}[]`
       : ''
-  }) => ${this.returnType.hint}` as TFunctionHint<A, R>
+  }) => ${this.returnType.hint}`
 
   _parse(ctx: ParseContextOf<this>): ParseResultOf<this> {
     if (!(typeof ctx.data === 'function')) {
