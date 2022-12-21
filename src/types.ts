@@ -3615,50 +3615,49 @@ export type TTypeNameMap = {
 
 /* -------------------------------------------------------------------------- */
 
-const tany = TAny.create
-const tarray = TArray.create
-const tbigint = TBigInt.create
-const tboolean = TBoolean.create
-const tbool = TBoolean.create // alias for `tboolean`
-const tbranded = TBranded.create
-const tcatch = TCatch.create
-const tdate = TDate.create
-const tdefault = TDefault.create
-const tenum = TEnum.create
-const tfalse = TFalse.create
-const tfunction = TFunction.create
-const tfn = TFunction.create // alias for `tfunction`
-const tinstanceof = TInstanceOf.create
-const tintersection = TIntersection.create
-const tlazy = TLazy.create
-const tliteral = TLiteral.create
-const tmap = TMap.create
-const tnan = TNaN.create
-const tnever = TNever.create
-const tnull = TNull.create
-const tnullable = TNullable.create
-const tnullish = TNullish.create
-const tnumber = TNumber.create
-const tobject = TObject.create
-const toptional = TOptional.create
-const tpipeline = TPipeline.create
-const tpromise = TPromise.create
-const trecord = TRecord.create
-const tset = TSet.create
-const tstring = TString.create
-const tsymbol = TSymbol.create
-const ttrue = TTrue.create
-const ttuple = TTuple.create
-const tundefined = TUndefined.create
-const tunion = TUnion.create
-const tunknown = TUnknown.create
-const tvoid = TVoid.create
+export const tany = TAny.create
+export const tarray = TArray.create
+export const tbigint = TBigInt.create
+export const tboolean = TBoolean.create
+export const tbool = TBoolean.create // alias for `tboolean`
+export const tbranded = TBranded.create
+export const tcatch = TCatch.create
+export const tdate = TDate.create
+export const tenum = TEnum.create
+export const tfalse = TFalse.create
+export const tfunction = TFunction.create
+export const tfn = TFunction.create // alias for `tfunction`
+export const tinstanceof = TInstanceOf.create
+export const tintersection = TIntersection.create
+export const tlazy = TLazy.create
+export const tliteral = TLiteral.create
+export const tmap = TMap.create
+export const tnan = TNaN.create
+export const tnever = TNever.create
+export const tnull = TNull.create
+export const tnullable = TNullable.create
+export const tnullish = TNullish.create
+export const tnumber = TNumber.create
+export const tobject = TObject.create
+export const toptional = TOptional.create
+export const tpipeline = TPipeline.create
+export const tpromise = TPromise.create
+export const trecord = TRecord.create
+export const tset = TSet.create
+export const tstring = TString.create
+export const tsymbol = TSymbol.create
+export const ttrue = TTrue.create
+export const ttuple = TTuple.create
+export const tundefined = TUndefined.create
+export const tunion = TUnion.create
+export const tunknown = TUnknown.create
+export const tvoid = TVoid.create
 // TEffects
-const tpreprocess = TEffects.preprocess
-const trefine = TEffects.refine
-const ttransform = TEffects.transform
+export const tpreprocess = TEffects.preprocess
+export const trefine = TEffects.refine
+export const ttransform = TEffects.transform
 // TGlobal
-const tglobal = () => TGlobal
+export const tglobal = () => TGlobal
 
 export {
   tany as any,
@@ -3669,7 +3668,6 @@ export {
   tbranded as branded,
   tcatch as catch,
   tdate as date,
-  tdefault as default,
   tenum as enum,
   tfalse as false,
   tfn as fn,
