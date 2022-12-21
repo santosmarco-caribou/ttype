@@ -1,13 +1,6 @@
-import cloneDeep from 'clone-deep'
 import type { Dayjs } from 'dayjs'
-import mergeDeep from 'merge-deep'
-import memoize from 'micro-memoize'
 import type { N } from 'ts-toolbelt'
-import type {
-  LiteralUnion,
-  PositiveInfinity,
-  RequireAtLeastOne,
-} from 'type-fest'
+import type { RequireAtLeastOne } from 'type-fest'
 import { IssueKind, type Issue, type checks } from './issues'
 import {
   ParseContext,
@@ -37,9 +30,9 @@ export abstract class TType<O, Def extends TDef, I = O> {
   protected constructor(def: Def) {
     this._def = def
 
-    this._parse = memoize(this._parse.bind(this))
-    this._parseSync = memoize(this._parseSync.bind(this))
-    this._parseAsync = memoize(this._parseAsync.bind(this))
+    this._parse = utils.memoize(this._parse.bind(this))
+    this._parseSync = utils.memoize(this._parseSync.bind(this))
+    this._parseAsync = utils.memoize(this._parseAsync.bind(this))
     this.safeParse = this.safeParse.bind(this)
     this.parse = this.parse.bind(this)
     this.safeParseAsync = this.safeParseAsync.bind(this)
@@ -222,7 +215,7 @@ export abstract class TType<O, Def extends TDef, I = O> {
 
   protected _construct(def: Partial<TDef>): this {
     return Reflect.construct(this.constructor as new (def: Def) => this, [
-      mergeDeep(cloneDeep(this._def), def),
+      utils.mergeDeep(utils.cloneDeep(this._def), def),
     ])
   }
 }
@@ -517,7 +510,11 @@ export class TFalse extends TType<false, TFalseDef> {
 /*                                    Date                                    */
 /* -------------------------------------------------------------------------- */
 
-export type DateDataInput = LiteralUnion<'now', string> | number | Date | Dayjs
+export type DateDataInput =
+  | utils.LiteralUnion<'now', string>
+  | number
+  | Date
+  | Dayjs
 
 export type TDateCheck =
   | checks.Min<DateDataInput>
@@ -1513,7 +1510,7 @@ export interface TArrayState {
 
 export interface TArrayInitialState extends TArrayState {
   min: 0
-  max: PositiveInfinity
+  max: utils.PositiveInfinity
 }
 
 type ComputeNextTArrayState<
@@ -1540,7 +1537,7 @@ export type TArrayIO<
   T extends AnyTType,
   S extends TArrayState,
   IO extends '_I' | '_O'
-> = PositiveInfinity extends S['max']
+> = utils.PositiveInfinity extends S['max']
   ? T[IO][]
   : utils.Equals<S['min'], S['max']> extends 1
   ? [...utils.ConstructTuple<T[IO], S['min']>, ...never[]]
