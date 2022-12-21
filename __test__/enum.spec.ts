@@ -24,11 +24,6 @@ describe('TEnum', () => {
     expect(mixedEnum.hint).toBe('1 | 2 | 3 | "a" | "b" | "c"')
     expect(nativeStringEnum.hint).toBe('"a" | "b" | "c"')
     expect(nativeNumberEnum.hint).toBe('0 | 1 | 2')
-    assertEqual<typeof stringEnum['hint'], '"a" | "b" | "c"'>(true)
-    assertEqual<typeof numberEnum['hint'], '3 | 1 | 2'>(true)
-    assertEqual<typeof mixedEnum['hint'], '"a" | "b" | "c" | 3 | 1 | 2'>(true)
-    assertEqual<typeof nativeStringEnum['hint'], '"a" | "b" | "c"'>(true)
-    assertEqual<typeof nativeNumberEnum['hint'], '1 | 2 | 0'>(true)
   })
 
   describe('values/enum', () => {
