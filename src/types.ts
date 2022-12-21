@@ -3707,6 +3707,6 @@ export {
 
 /* -------------------------------------------------------------------------- */
 
-export type output<T extends AnyTType> = T['_O']
-export type input<T extends AnyTType> = T['_I']
-export type infer<T extends AnyTType> = T['_O']
+export type output<T extends AnyTType> = utils.FixEmptyObject<T['_O']>
+export type input<T extends AnyTType> = utils.FixEmptyObject<T['_I']>
+export type infer<T extends AnyTType> = output<T>
