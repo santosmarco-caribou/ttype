@@ -61,7 +61,7 @@ export interface ParseContextCommon extends ParseOptions {
 }
 
 export interface ParseContextCloneDef<O = unknown, I = O> {
-  readonly ttype: AnyTType<O, I>
+  readonly type: AnyTType<O, I>
 }
 
 export interface ParseContextChildDef<D = unknown, O = unknown, I = O>
@@ -99,8 +99,8 @@ export class ParseContext<D = unknown, O = unknown, I = O> {
     return this as unknown as ParseContext<D_, O, I>
   }
 
-  get ttype(): AnyTType<O, I> {
-    return this._def.ttype
+  get type(): AnyTType<O, I> {
+    return this._def.type
   }
 
   get path(): ParsePath {
@@ -138,9 +138,9 @@ export class ParseContext<D = unknown, O = unknown, I = O> {
   child<D_, O_, I_>(
     def: ParseContextChildDef<D_, O_, I_>
   ): ParseContext<D_, O_, I_> {
-    const { ttype, data, path } = def
+    const { type, data, path } = def
     const child = new ParseContext({
-      ttype,
+      type,
       data,
       path: this.path.concat(path),
       status: ParseStatus.Valid,
@@ -154,9 +154,9 @@ export class ParseContext<D = unknown, O = unknown, I = O> {
   }
 
   clone<O_, I_>(def: ParseContextCloneDef<O_, I_>): ParseContext<D, O_, I_> {
-    const { ttype } = def
+    const { type } = def
     const clone = new ParseContext({
-      ttype,
+      type,
       status: ParseStatus.Valid,
       data: this.data,
       path: this.path,
@@ -211,17 +211,17 @@ export class ParseContext<D = unknown, O = unknown, I = O> {
 
     const issue = {
       kind,
-      payload: payload,
+      payload,
       input: { data: this.data, parsedType: this.dataType },
       path: this.path,
-      type: this.ttype,
+      type: this.type,
     } as NoMsgIssue
 
     const issueMessage =
       message ??
       [
         this.common.errorMap,
-        this.ttype.options.errorMap,
+        this.type.options.errorMap,
         TGlobal.getErrorMap(),
         DEFAULT_ERROR_MAP,
       ]
@@ -307,12 +307,12 @@ export class ParseContext<D = unknown, O = unknown, I = O> {
   }
 
   static createSync<D, O, I>(
-    ttype: AnyTType<O, I>,
+    type: AnyTType<O, I>,
     data: D,
     options: ParseOptions | undefined
   ): ParseContext<D, O, I> {
     return new ParseContext({
-      ttype,
+      type,
       data,
       path: [],
       status: ParseStatus.Valid,
@@ -324,12 +324,12 @@ export class ParseContext<D = unknown, O = unknown, I = O> {
   }
 
   static createAsync<D, O, I>(
-    ttype: AnyTType<O, I>,
+    type: AnyTType<O, I>,
     data: D,
     options: ParseOptions | undefined
   ): ParseContext<D, O, I> {
     return new ParseContext({
-      ttype,
+      type,
       data,
       path: [],
       status: ParseStatus.Valid,

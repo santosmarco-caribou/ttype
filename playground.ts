@@ -1,3 +1,8 @@
+import { z } from 'zod'
 import { t } from './src'
 
-console.log(t.object({ a: t.null(), b: t.never() }).pick(['a', 'b']))
+const c = t.object({ a: t.null(), b: t.never() }).pick(['a', 'b'])
+
+c.parse(2)
+
+// z.string().parse(2)

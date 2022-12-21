@@ -9,6 +9,18 @@ export class TError<O = unknown, I = O> extends Error {
 
   constructor(private readonly _parseCtx: ParseContext<unknown, O, I>) {
     super()
+
+    const actualProto = new.target.prototype
+    if (Object.setPrototypeOf) {
+      Object.setPrototypeOf(this, actualProto)
+    } else {
+      // prettier-ignore
+      (this as any).__proto__ = actualProto
+    }
+
+    Object.getOwnPropertyNames(this).forEach((prop) =>
+      Object.defineProperty(this, prop, { enumerable: false })
+    )
   }
 }
 

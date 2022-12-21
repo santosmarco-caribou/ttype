@@ -3,6 +3,7 @@ import { nanoid } from 'nanoid'
 import type { N } from 'ts-toolbelt'
 import type { RequireAtLeastOne } from 'type-fest'
 import type { ErrorMap } from './error'
+import { TGlobal } from './global'
 import { IssueKind, type Issue, type checks } from './issues'
 import {
   ParseContext,
@@ -19,7 +20,6 @@ import {
   type SyncParseResultOf,
 } from './parse'
 import { utils } from './utils'
-import { TGlobal } from './global'
 
 export interface CreateOptions {
   readonly errorMap?: ErrorMap
@@ -82,9 +82,11 @@ export abstract class TType<O, Def extends TDef, I = O> {
     this.transform = this.transform.bind(this)
     this.preprocess = this.preprocess.bind(this)
 
-    Object.keys(Object.getOwnPropertyDescriptors(this))
-      .filter((key) => key.match(/^\$?_/))
-      .forEach((key) => Object.defineProperty(this, key, { enumerable: false }))
+    Object.getOwnPropertyNames(this)
+      .filter((prop) => prop.match(/^\$?_/))
+      .forEach((prop) =>
+        Object.defineProperty(this, prop, { enumerable: false })
+      )
   }
 
   abstract _parse(ctx: ParseContext<unknown, O, I>): ParseResultOf<this>
@@ -1024,6 +1026,7 @@ export const getValidEnumObject = <T extends EnumLike>(obj: T) =>
 
 export interface TEnumDef<T extends EnumLike> extends TDef {
   readonly typeName: TTypeName.Enum
+  readonly hint: TEnumHint<T>
   readonly enum: T
 }
 
@@ -1195,7 +1198,7 @@ export class TNullable<T extends AnyTType> extends TType<
   _parse(ctx: ParseContextOf<this>): ParseResultOf<this> {
     return ctx.data === null
       ? ctx.OK(ctx.data)
-      : this.underlying._parse(ctx.clone({ ttype: this.underlying }))
+      : this.underlying._parse(ctx.clone({ type: this.underlying }))
   }
 
   get underlying(): T {
@@ -1244,7 +1247,7 @@ export class TOptional<T extends AnyTType> extends TType<
   _parse(ctx: ParseContextOf<this>): ParseResultOf<this> {
     return ctx.data === undefined
       ? ctx.OK(ctx.data)
-      : this.underlying._parse(ctx.clone({ ttype: this.underlying }))
+      : this.underlying._parse(ctx.clone({ type: this.underlying }))
   }
 
   get underlying(): T {
@@ -1293,7 +1296,7 @@ export class TLazy<T extends AnyTType> extends TType<
   }
 
   _parse(ctx: ParseContextOf<this>): ParseResultOf<this> {
-    return this.underlying._parse(ctx.clone({ ttype: this.underlying }))
+    return this.underlying._parse(ctx.clone({ type: this.underlying }))
   }
 
   get underlying(): T {
@@ -1403,7 +1406,7 @@ export class TBranded<T extends AnyTType, B extends PropertyKey> extends TType<
 
   _parse(ctx: ParseContextOf<this>): ParseResultOf<this> {
     return this.underlying._parse(
-      ctx.clone({ ttype: this.underlying })
+      ctx.clone({ type: this.underlying })
     ) as ParseResultOf<this>
   }
 
@@ -1462,7 +1465,7 @@ export class TDefault<
     }
 
     return this.underlying._parse(
-      ctx.clone({ ttype: this.underlying })
+      ctx.clone({ type: this.underlying })
     ) as ParseResultOf<this>
   }
 
@@ -1517,7 +1520,7 @@ export class TCatch<T extends AnyTType, C extends T['_I']> extends TType<
   readonly hint: `Catch<${T['hint']}>` = `Catch<${this.underlying['hint']}>`
 
   _parse(ctx: ParseContextOf<this>): ParseResultOf<this> {
-    const result = this.underlying._parse(ctx.clone({ ttype: this.underlying }))
+    const result = this.underlying._parse(ctx.clone({ type: this.underlying }))
 
     if (result instanceof Promise) {
       return result.then((awaitedRes) =>
@@ -1677,7 +1680,7 @@ export class TArray<
       return Promise.resolve().then(async () => {
         for (const [index, value] of entries) {
           const parseResult = await this.element._parseAsync(
-            ctx.child({ ttype: this.element, data: value, path: [index] })
+            ctx.child({ type: this.element, data: value, path: [index] })
           )
           if (parseResult.ok) {
             result.push(parseResult.data)
@@ -1694,7 +1697,7 @@ export class TArray<
     } else {
       for (const [index, value] of entries) {
         const parseResult = this.element._parseSync(
-          ctx.child({ ttype: this.element, data: value, path: [index] })
+          ctx.child({ type: this.element, data: value, path: [index] })
         )
         if (parseResult.ok) {
           result.push(parseResult.data)
@@ -1901,7 +1904,7 @@ export class TSet<
       return Promise.resolve().then(async () => {
         for (const [val, idx] of data) {
           const valResult = await element._parseAsync(
-            ctx.child({ ttype: element, data: val, path: [idx] })
+            ctx.child({ type: element, data: val, path: [idx] })
           )
           if (valResult.ok) {
             result.add(valResult.data)
@@ -1914,7 +1917,7 @@ export class TSet<
     } else {
       for (const [val, idx] of data) {
         const valResult = element._parseSync(
-          ctx.child({ ttype: element, data: val, path: [idx] })
+          ctx.child({ type: element, data: val, path: [idx] })
         )
         if (valResult.ok) {
           result.add(valResult.data)
@@ -2071,7 +2074,7 @@ export class TTuple<
         for (const [val, idx] of data) {
           const valParser = items[idx] ?? rest
           const valResult = await valParser._parseAsync(
-            ctx.child({ ttype: valParser, data: val, path: [idx] })
+            ctx.child({ type: valParser, data: val, path: [idx] })
           )
           if (valResult.ok) {
             result.push(valResult.data)
@@ -2085,7 +2088,7 @@ export class TTuple<
       for (const [val, idx] of data) {
         const valParser = items[idx] ?? rest
         const valResult = valParser._parseSync(
-          ctx.child({ ttype: valParser, data: val, path: [idx] })
+          ctx.child({ type: valParser, data: val, path: [idx] })
         )
         if (valResult.ok) {
           result.push(valResult.data)
@@ -2182,14 +2185,14 @@ export class TRecord<
         for (const [key, val] of data) {
           const keyResult = await keys._parseAsync(
             ctx.child({
-              ttype: keys,
+              type: keys,
               data: key,
               path: [typeof key === 'symbol' ? String(key) : key],
             })
           )
           const valResult = await values._parseAsync(
             ctx.child({
-              ttype: values,
+              type: values,
               data: val,
               path: [typeof key === 'symbol' ? String(key) : key],
             })
@@ -2206,14 +2209,14 @@ export class TRecord<
       for (const [key, val] of data) {
         const keyResult = keys._parseSync(
           ctx.child({
-            ttype: keys,
+            type: keys,
             data: key,
             path: [typeof key === 'symbol' ? String(key) : key],
           })
         )
         const valResult = values._parseSync(
           ctx.child({
-            ttype: values,
+            type: values,
             data: val,
             path: [typeof key === 'symbol' ? String(key) : key],
           })
@@ -2297,10 +2300,10 @@ export class TMap<K extends AnyTType, V extends AnyTType> extends TType<
       return Promise.resolve().then(async () => {
         for (const [key, val, idx] of data) {
           const keyResult = await keys._parseAsync(
-            ctx.child({ ttype: keys, data: key, path: [idx, 'key'] })
+            ctx.child({ type: keys, data: key, path: [idx, 'key'] })
           )
           const valResult = await values._parseAsync(
-            ctx.child({ ttype: values, data: val, path: [idx, 'value'] })
+            ctx.child({ type: values, data: val, path: [idx, 'value'] })
           )
           if (keyResult.ok && valResult.ok) {
             result.set(keyResult.data, valResult.data)
@@ -2313,10 +2316,10 @@ export class TMap<K extends AnyTType, V extends AnyTType> extends TType<
     } else {
       for (const [key, val, idx] of data) {
         const keyResult = keys._parseSync(
-          ctx.child({ ttype: keys, data: key, path: [idx, 'key'] })
+          ctx.child({ type: keys, data: key, path: [idx, 'key'] })
         )
         const valResult = values._parseSync(
-          ctx.child({ ttype: values, data: val, path: [idx, 'value'] })
+          ctx.child({ type: values, data: val, path: [idx, 'value'] })
         )
         if (keyResult.ok && valResult.ok) {
           result.set(keyResult.data, valResult.data)
@@ -2514,7 +2517,7 @@ export class TObject<
       resultPairs.set(
         { ok: true, data: key },
         keyParser._parse(
-          ctx.child({ ttype: keyParser, data: value, path: [key] })
+          ctx.child({ type: keyParser, data: value, path: [key] })
         )
       )
     }
@@ -2547,7 +2550,7 @@ export class TObject<
         resultPairs.set(
           { ok: true, data: key },
           catchall._parse(
-            ctx.child({ ttype: catchall, data: value, path: [key] })
+            ctx.child({ type: catchall, data: value, path: [key] })
           )
         )
       }
@@ -2797,12 +2800,12 @@ export class TUnion<T extends TUnionMembers> extends TType<
     if (ctx.common.async) {
       return Promise.all(
         this.members.map((member) =>
-          member._parseAsync(ctx.clone({ ttype: member }))
+          member._parseAsync(ctx.clone({ type: member }))
         )
       ).then(handleResults)
     } else {
       const results = this.members.map((member) =>
-        member._parseSync(ctx.clone({ ttype: member }))
+        member._parseSync(ctx.clone({ type: member }))
       )
       return handleResults(results)
     }
@@ -2930,12 +2933,12 @@ export class TIntersection<T extends TIntersectionMembers> extends TType<
     if (ctx.common.async) {
       return Promise.all(
         this.members.map((member) =>
-          member._parseAsync(ctx.clone({ ttype: member }))
+          member._parseAsync(ctx.clone({ type: member }))
         )
       ).then(handleIntersection)
     } else {
       const results = this.members.map((member) =>
-        member._parseSync(ctx.clone({ ttype: member }))
+        member._parseSync(ctx.clone({ type: member }))
       )
       return handleIntersection(results)
     }
@@ -3062,11 +3065,11 @@ export class TEffects<
         ? Promise.resolve(processed).then((processedAsync) => {
             ctx.setData(processedAsync as O)
             return this.underlying._parseAsync(
-              ctx.clone({ ttype: this.underlying })
+              ctx.clone({ type: this.underlying })
             )
           })
         : ctx.setData(processed as O) &&
-            this.underlying._parseSync(ctx.clone({ ttype: this.underlying }))
+            this.underlying._parseSync(ctx.clone({ type: this.underlying }))
     }
 
     const effectCtx = createEffectContext(ctx)
@@ -3078,7 +3081,7 @@ export class TEffects<
           effectCtx
         )
         return this.underlying
-          ._parseAsync(ctx.clone({ ttype: this.underlying }))
+          ._parseAsync(ctx.clone({ type: this.underlying }))
           .then((underlyingRes) =>
             underlyingRes.ok
               ? executeRefinement(underlyingRes.data).then((refinementRes) =>
@@ -3092,7 +3095,7 @@ export class TEffects<
           effectCtx
         )
         const underlyingRes = this.underlying._parseSync(
-          ctx.clone({ ttype: this.underlying })
+          ctx.clone({ type: this.underlying })
         )
         return underlyingRes.ok && executeRefinement(underlyingRes.data)
           ? ctx.OK(underlyingRes.data)
@@ -3103,7 +3106,7 @@ export class TEffects<
     if (effect.kind === EffectKind.Transform) {
       if (ctx.common.async) {
         return this.underlying
-          ._parseAsync(ctx.clone({ ttype: this.underlying }))
+          ._parseAsync(ctx.clone({ type: this.underlying }))
           .then((baseRes) => {
             if (!baseRes.ok) {
               return ctx.ABORT()
@@ -3116,7 +3119,7 @@ export class TEffects<
           })
       } else {
         const baseRes = this.underlying._parseSync(
-          ctx.clone({ ttype: this.underlying })
+          ctx.clone({ type: this.underlying })
         )
         if (!baseRes.ok) {
           return ctx.ABORT()

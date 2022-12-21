@@ -13,6 +13,7 @@
     "build:esm": "rollup --config rollup.config.js",
     "build:types": "tsc -p tsconfig.types.json",
     "clean": "rm -rf lib/* deno/lib/*",
+    "dev": "ts-node-dev --transpile-only --respawn playground.ts",
     "format:check": "prettier . --check",
     "format:write": "prettier . --write",
     "lint:check": "eslint . --ext .ts,.tsx",
