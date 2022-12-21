@@ -35,23 +35,65 @@ describe('TEnum', () => {
       expect(nativeNumberEnum.values).toStrictEqual([0, 1, 2])
       expect(stringEnum.enum).toStrictEqual({ a: 'a', b: 'b', c: 'c' })
       expect(numberEnum.enum).toStrictEqual({ 1: 1, 2: 2, 3: 3 })
-      expect(mixedEnum.enum).toStrictEqual({ a: 'a', 1: 1, b: 'b', 2: 2, c: 'c', 3: 3 })
-      expect(nativeStringEnum.enum).toStrictEqual({ A: StringEnum.A, B: StringEnum.B, C: StringEnum.C })
-      expect(nativeNumberEnum.enum).toStrictEqual({ A: NumberEnum.A, B: NumberEnum.B, C: NumberEnum.C })
+      expect(mixedEnum.enum).toStrictEqual({
+        a: 'a',
+        1: 1,
+        b: 'b',
+        2: 2,
+        c: 'c',
+        3: 3,
+      })
+      expect(nativeStringEnum.enum).toStrictEqual({
+        A: StringEnum.A,
+        B: StringEnum.B,
+        C: StringEnum.C,
+      })
+      expect(nativeNumberEnum.enum).toStrictEqual({
+        A: NumberEnum.A,
+        B: NumberEnum.B,
+        C: NumberEnum.C,
+      })
       expect(nativeNumberEnum.enum).not.toStrictEqual(NumberEnum)
     })
 
     test('inference', () => {
       assertEqual<typeof stringEnum['values'], readonly ['a', 'b', 'c']>(true)
       assertEqual<typeof numberEnum['values'], readonly [3, 1, 2]>(true)
-      assertEqual<typeof mixedEnum['values'], readonly ['a', 'b', 'c', 3, 1, 2]>(true)
-      assertEqual<typeof nativeStringEnum['values'], readonly ['a', 'b', 'c']>(true)
+      assertEqual<
+        typeof mixedEnum['values'],
+        readonly ['a', 'b', 'c', 3, 1, 2]
+      >(true)
+      assertEqual<typeof nativeStringEnum['values'], readonly ['a', 'b', 'c']>(
+        true
+      )
       assertEqual<typeof nativeNumberEnum['values'], readonly [1, 2, 0]>(true)
-      assertEqual<typeof stringEnum['enum'], { readonly a: 'a'; readonly b: 'b'; readonly c: 'c' }>(true)
-      assertEqual<typeof numberEnum['enum'], { readonly 1: 1; readonly 2: 2; readonly 3: 3 }>(true)
-      assertEqual<typeof mixedEnum['enum'], { readonly a: 'a'; readonly 1: 1; readonly b: 'b'; readonly 2: 2; readonly c: 'c'; readonly 3: 3 }>(true)
-      assertEqual<typeof nativeStringEnum['enum'], { readonly A: 'a'; readonly B: 'b'; readonly C: 'c' }>(true)
-      assertEqual<typeof nativeNumberEnum['enum'], { readonly A: 0; readonly B: 1; readonly C: 2 }>(true)
+      assertEqual<
+        typeof stringEnum['enum'],
+        { readonly a: 'a'; readonly b: 'b'; readonly c: 'c' }
+      >(true)
+      assertEqual<
+        typeof numberEnum['enum'],
+        { readonly 1: 1; readonly 2: 2; readonly 3: 3 }
+      >(true)
+      assertEqual<
+        typeof mixedEnum['enum'],
+        {
+          readonly a: 'a'
+          readonly 1: 1
+          readonly b: 'b'
+          readonly 2: 2
+          readonly c: 'c'
+          readonly 3: 3
+        }
+      >(true)
+      assertEqual<
+        typeof nativeStringEnum['enum'],
+        { readonly A: 'a'; readonly B: 'b'; readonly C: 'c' }
+      >(true)
+      assertEqual<
+        typeof nativeNumberEnum['enum'],
+        { readonly A: 0; readonly B: 1; readonly C: 2 }
+      >(true)
     })
   })
 
@@ -74,24 +116,49 @@ describe('TEnum', () => {
       expect(nativeBananaOnly.values).toStrictEqual(['banana'])
       expect(nativeAppleAndOrange.values).toStrictEqual(['apple', 'orange'])
       expect(bananaOnly.enum).toStrictEqual({ banana: 'banana' })
-      expect(appleAndOrange.enum).toStrictEqual({ apple: 'apple', orange: 'orange' })
+      expect(appleAndOrange.enum).toStrictEqual({
+        apple: 'apple',
+        orange: 'orange',
+      })
       expect(nativeBananaOnly.enum).toStrictEqual({ Banana: FoodEnum.Banana })
-      expect(nativeAppleAndOrange.enum).toStrictEqual({ Apple: FoodEnum.Apple, Orange: FoodEnum.Orange })
+      expect(nativeAppleAndOrange.enum).toStrictEqual({
+        Apple: FoodEnum.Apple,
+        Orange: FoodEnum.Orange,
+      })
     })
 
     test('inference', () => {
       assertEqual<t.infer<typeof bananaOnly>, 'banana'>(true)
       assertEqual<t.infer<typeof appleAndOrange>, 'apple' | 'orange'>(true)
       assertEqual<t.infer<typeof nativeBananaOnly>, 'banana'>(true)
-      assertEqual<t.infer<typeof nativeAppleAndOrange>, 'apple' | 'orange'>(true)
+      assertEqual<t.infer<typeof nativeAppleAndOrange>, 'apple' | 'orange'>(
+        true
+      )
       assertEqual<typeof bananaOnly['values'], readonly ['banana']>(true)
-      assertEqual<typeof appleAndOrange['values'], readonly ['apple', 'orange']>(true)
+      assertEqual<
+        typeof appleAndOrange['values'],
+        readonly ['apple', 'orange']
+      >(true)
       assertEqual<typeof nativeBananaOnly['values'], readonly ['banana']>(true)
-      assertEqual<typeof nativeAppleAndOrange['values'], readonly ['apple', 'orange']>(true)
-      assertEqual<typeof bananaOnly['enum'], { readonly banana: 'banana' }>(true)
-      assertEqual<typeof appleAndOrange['enum'], { readonly apple: 'apple'; readonly orange: 'orange' }>(true)
-      assertEqual<typeof nativeBananaOnly['enum'], { readonly Banana: 'banana' }>(true)
-      assertEqual<typeof nativeAppleAndOrange['enum'], { readonly Apple: 'apple'; readonly Orange: 'orange' }>(true)
+      assertEqual<
+        typeof nativeAppleAndOrange['values'],
+        readonly ['apple', 'orange']
+      >(true)
+      assertEqual<typeof bananaOnly['enum'], { readonly banana: 'banana' }>(
+        true
+      )
+      assertEqual<
+        typeof appleAndOrange['enum'],
+        { readonly apple: 'apple'; readonly orange: 'orange' }
+      >(true)
+      assertEqual<
+        typeof nativeBananaOnly['enum'],
+        { readonly Banana: 'banana' }
+      >(true)
+      assertEqual<
+        typeof nativeAppleAndOrange['enum'],
+        { readonly Apple: 'apple'; readonly Orange: 'orange' }
+      >(true)
     })
   })
 

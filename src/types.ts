@@ -1,5 +1,4 @@
 import type { Dayjs } from 'dayjs'
-import { nanoid } from 'nanoid'
 import type { N } from 'ts-toolbelt'
 import type { RequireAtLeastOne } from 'type-fest'
 import type { ErrorMap } from './error'
@@ -41,7 +40,7 @@ export abstract class TType<O, Def extends TDef, I = O> {
 
   protected readonly _def: utils.Merge<Def, { readonly options: TOptions }>
 
-  readonly id: string = nanoid()
+  // readonly id: string = nanoid()
 
   get typeName(): Def['typeName'] {
     return this._def.typeName
@@ -2593,13 +2592,7 @@ export class TObject<
     const shapeKeys = Object.keys(shape)
     const extraKeys = new Set<string>()
 
-    if (
-      unknownKeys !== 'strip' ||
-      catchall !== null ||
-      !(catchall instanceof TNever)
-    ) {
-      // If we're not stripping unknown keys, nor we have a catchall, we
-      // have to check for extra keys.
+    if (unknownKeys !== 'strip' && (!catchall || catchall instanceof TNever)) {
       for (const key in ctx.data) {
         if (!shapeKeys.includes(key)) {
           extraKeys.add(key)
@@ -2607,13 +2600,12 @@ export class TObject<
       }
     }
 
-    // We validate each key in the shape.
-    const resultPairs = new Map<ParseResult, ParseResult>()
+    const resultPairs = new Map<string, ParseResult>()
     for (const key of shapeKeys) {
       const keyParser = shape[key]
       const value = ctx.data[key]
       resultPairs.set(
-        { ok: true, data: key },
+        key,
         keyParser._parse(
           ctx.child({ type: keyParser, data: value, path: [key] })
         )
@@ -2622,31 +2614,20 @@ export class TObject<
 
     if (!catchall || catchall instanceof TNever) {
       if (unknownKeys === 'passthrough') {
-        // If no catchall and unknown keys is `passthrough`,
-        // we add the extra keys to the result.
         for (const key of extraKeys) {
-          resultPairs.set(
-            { ok: true, data: key },
-            { ok: true, data: ctx.data[key] }
-          )
+          resultPairs.set(key, { ok: true, data: ctx.data[key] })
         }
-      } else if (unknownKeys === 'strict') {
-        // If no catchall and unknown keys is `strict`,
-        // we throw in case of extra keys.
-        if (extraKeys.size > 0) {
-          ctx.UNRECOGNIZED_KEYS({ keys: [...extraKeys] })
-          if (ctx.common.abortEarly) {
-            return ctx.ABORT()
-          }
+      } else if (unknownKeys === 'strict' && extraKeys.size > 0) {
+        ctx.UNRECOGNIZED_KEYS({ keys: [...extraKeys] })
+        if (ctx.common.abortEarly) {
+          return ctx.ABORT()
         }
       }
     } else {
-      // If we have a catchall, we use it to validate the extra keys and add
-      // them to the result.
       for (const key of extraKeys) {
         const value = ctx.data[key]
         resultPairs.set(
-          { ok: true, data: key },
+          key,
           catchall._parse(
             ctx.child({ type: catchall, data: value, path: [key] })
           )
@@ -2655,44 +2636,37 @@ export class TObject<
     }
 
     if (ctx.common.async) {
-      return Promise.resolve()
-        .then(async () => {
-          const syncPairs = new Map<SyncParseResult, SyncParseResult>()
-          for (const [keyResult, valueResult] of resultPairs) {
-            const keyResultSync = await keyResult
-            const valueResultSync = await valueResult
-            syncPairs.set(keyResultSync, valueResultSync)
-          }
-          return syncPairs
-        })
-        .then((syncPairs) => {
-          const finalObject = {} as Record<string, unknown>
-          for (const [key, value] of syncPairs) {
-            if (key.ok && value.ok) {
-              if (value.data !== undefined) {
-                finalObject[key.data as string] = value.data
-              }
-            } else {
+      return Promise.resolve().then(async () => {
+        const result = {} as Record<string, unknown>
+        for (const [key, valueResult] of resultPairs) {
+          const valueResultSync = await valueResult
+          if (valueResultSync.ok) {
+            if (valueResultSync.data !== undefined) {
+              result[key] = valueResultSync.data
+            }
+          } else {
+            if (ctx.common.abortEarly) {
               return ctx.ABORT()
             }
           }
-          return ctx.OK(finalObject as this['_O'])
-        })
+        }
+        return ctx.isInvalid() ? ctx.ABORT() : ctx.OK(result as this['_O'])
+      })
     } else {
-      const finalObject = {} as Record<string, unknown>
-      for (const [key, value] of resultPairs as Map<
-        SyncParseResult,
-        SyncParseResult
-      >) {
-        if (key.ok && value.ok) {
-          if (value.data !== undefined) {
-            finalObject[key.data as string] = value.data
+      const result = {} as Record<string, unknown>
+      for (const [key, valueResult] of resultPairs) {
+        const valueResultSync = valueResult as SyncParseResult
+        if (valueResultSync.ok) {
+          if (valueResultSync.data !== undefined) {
+            result[key] = valueResultSync.data
           }
         } else {
-          return ctx.ABORT()
+          if (ctx.common.abortEarly) {
+            return ctx.ABORT()
+          }
         }
       }
-      return ctx.OK(finalObject as this['_O'])
+      return ctx.isInvalid() ? ctx.ABORT() : ctx.OK(result as this['_O'])
     }
   }
 
@@ -2718,6 +2692,12 @@ export class TObject<
 
   catchall<C_ extends TObjectCatchall>(catchall: C_): TObject<S, null, C_> {
     return this._setCatchall(catchall)
+  }
+
+  keyof(): TEnum<{ readonly [K in keyof S & string]: K }> {
+    return TEnum.create(
+      utils.keys(this.shape) as unknown as EnumValues<keyof S & string>
+    )
   }
 
   augment<T extends TObjectShape>(

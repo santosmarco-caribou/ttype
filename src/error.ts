@@ -18,9 +18,14 @@ export class TError<O = unknown, I = O> extends Error {
       (this as any).__proto__ = actualProto
     }
 
-    Object.getOwnPropertyNames(this).forEach((prop) =>
-      Object.defineProperty(this, prop, { enumerable: false })
-    )
+    // Object.getOwnPropertyNames(this).forEach((prop) =>
+    //   Object.defineProperty(this, prop, { enumerable: false })
+    // )
+  }
+
+  get message() {
+    console.log(this.issues)
+    return JSON.stringify(this.issues, null, 2)
   }
 }
 

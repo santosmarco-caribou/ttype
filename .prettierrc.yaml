@@ -4,6 +4,5 @@ singleQuote: true
 overrides:
   - files:
       - src/utils.ts
-      - __test__/**/*.ts
     options:
       printWidth: 200

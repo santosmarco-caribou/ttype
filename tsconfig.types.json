@@ -4,7 +4,7 @@
     "declaration": true,
     "declarationMap": true,
     "emitDeclarationOnly": true,
-    "outDir": "./lib/types"
+    "outDir": "lib/types"
   },
-  "exclude": ["./__tests__/**/*", "./playground.ts"]
+  "exclude": ["__tests__", "playground.ts"]
 }

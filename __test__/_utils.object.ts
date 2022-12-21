@@ -119,5 +119,15 @@ export namespace tobjectUtils {
     friends: t.array(BasicPerson).nullish(),
   })
 
-  export const PersonBasicInfo = BasicPerson.pick(['firstName', 'lastName', 'middleName', 'dob', 'age', 'email', 'phone', 'ssn', 'gender'])
+  export const PersonBasicInfo = BasicPerson.pick([
+    'firstName',
+    'lastName',
+    'middleName',
+    'dob',
+    'age',
+    'email',
+    'phone',
+    'ssn',
+    'gender',
+  ])
 }
