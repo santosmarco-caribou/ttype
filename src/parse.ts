@@ -284,6 +284,14 @@ export class ParseContext<D = unknown, O = unknown, I = O> {
     })
   }
 
+  INVALID_ARGUMENTS(payload: { readonly error: TError }) {
+    return this.DIRTY(IssueKind.InvalidArguments, payload)
+  }
+
+  INVALID_RETURN_TYPE(payload: { readonly error: TError }) {
+    return this.DIRTY(IssueKind.InvalidReturnType, payload)
+  }
+
   INVALID_UNION(payload: { errors: readonly TError[] }) {
     return this.DIRTY(IssueKind.InvalidUnion, { unionErrors: payload.errors })
   }

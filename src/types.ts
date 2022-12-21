@@ -19,6 +19,7 @@ import {
   type SyncParseResult,
   type SyncParseResultOf,
 } from './parse'
+import { show } from './show'
 import { utils } from './utils'
 
 export interface CreateOptions {
@@ -78,6 +79,9 @@ export abstract class TType<O, Def extends TDef, I = O> {
     this.transform = this.transform.bind(this)
     this.preprocess = this.preprocess.bind(this)
     this.pipe = this.pipe.bind(this)
+    this.isOptional = this.isOptional.bind(this)
+    this.isNullable = this.isNullable.bind(this)
+    this.isType = this.isType.bind(this)
 
     Object.getOwnPropertyNames(this)
       .filter((prop) => prop.match(/^\$?_/))
@@ -218,6 +222,20 @@ export abstract class TType<O, Def extends TDef, I = O> {
 
   pipe<O_, T extends AnyTType<O_, I>>(type: T): TPipeline<this, T> {
     return TPipeline.create(this, type)
+  }
+
+  isOptional(): boolean {
+    return this.safeParse(undefined).ok
+  }
+
+  isNullable(): boolean {
+    return this.safeParse(null).ok
+  }
+
+  isType<T extends TTypeName>(
+    ...types: readonly [T, ...T[]]
+  ): this is TTypeNameMap[T] {
+    return utils.includes(types, this.typeName)
   }
 
   protected _addCheck<K extends utils.Defined<Def['checks']>[number]['kind']>(
@@ -977,55 +995,27 @@ export type EnumLike = { [x: string]: EnumValue } & { [x: number]: string }
 export type UnionToEnumValues<T> =
   utils.UnionToTuple<T> extends infer X extends EnumValues ? X : never
 
-export type CastToEnumPrimitive<T extends EnumValue> =
+export type ToEnumPrimitive<T extends EnumValue> =
   `${T}` extends `${infer N extends number}` ? N : `${T}`
 
-export type CastToEnumLike<T> = utils.Simplify<
+export type ToEnumLike<T> = utils.Simplify<
   utils.OmitIndexSignature<T>
 > extends infer X
   ? X extends EnumLike
-    ? { [K in keyof X]: CastToEnumPrimitive<X[K]> }
+    ? { [K in keyof X]: ToEnumPrimitive<X[K]> }
     : never
   : never
 
-export type EnumExtract<
-  T extends EnumLike,
-  V extends T[keyof T]
-> = CastToEnumLike<{
-  [K in keyof T as CastToEnumPrimitive<T[K]> extends CastToEnumPrimitive<V>
+export type EnumExtract<T extends EnumLike, V extends T[keyof T]> = ToEnumLike<{
+  [K in keyof T as ToEnumPrimitive<T[K]> extends ToEnumPrimitive<V>
     ? K
     : never]: T[K]
 }>
-export type EnumExclude<
-  T extends EnumLike,
-  V extends T[keyof T]
-> = CastToEnumLike<{
-  [K in keyof T as CastToEnumPrimitive<T[K]> extends CastToEnumPrimitive<V>
+export type EnumExclude<T extends EnumLike, V extends T[keyof T]> = ToEnumLike<{
+  [K in keyof T as ToEnumPrimitive<T[K]> extends ToEnumPrimitive<V>
     ? never
     : K]: T[K]
 }>
-
-export type TEnumValuesHint<T extends EnumValues> = T extends readonly [
-  infer H extends EnumValue,
-  ...infer R
-]
-  ? `${utils.Literalized<H>}${R extends [infer U extends EnumValue]
-      ? ` | ${utils.Literalized<U>}`
-      : R extends EnumValues
-      ? ` | ${TEnumValuesHint<R>}`
-      : never}`
-  : never
-
-export type TEnumHint<T extends EnumLike> = TEnumValuesHint<
-  UnionToEnumValues<T[keyof T]>
->
-
-export const getValidEnumObject = <T extends EnumLike>(obj: T) =>
-  Object.fromEntries(
-    Object.entries(obj)
-      .filter(([k]) => typeof obj[obj[k]] !== 'number')
-      .map(([k]) => [k, obj[k]])
-  )
 
 export interface TEnumDef<T extends EnumLike> extends TDef {
   readonly typeName: TTypeName.Enum
@@ -1033,9 +1023,7 @@ export interface TEnumDef<T extends EnumLike> extends TDef {
 }
 
 export class TEnum<T extends EnumLike> extends TType<T[keyof T], TEnumDef<T>> {
-  readonly hint: TEnumHint<T> = this.values
-    .map(utils.literalize)
-    .join(' | ') as TEnumHint<T>
+  readonly hint = show.enum(this.values)
 
   _parse(ctx: ParseContextOf<this>): ParseResultOf<this> {
     const enumTypes = [
@@ -1126,11 +1114,20 @@ export class TEnum<T extends EnumLike> extends TType<T[keyof T], TEnumDef<T>> {
   private static _create<T extends EnumLike>(
     enum_: T,
     options?: CreateOptions
-  ): TEnum<CastToEnumLike<{ readonly [K in keyof T]: T[K] }>>
+  ): TEnum<ToEnumLike<{ readonly [K in keyof T]: T[K] }>>
   private static _create(
     valuesOrEnum: EnumValues | EnumLike,
     options?: CreateOptions
   ) {
+    const getValidEnumObject = <T extends EnumLike>(
+      obj: T
+    ): { [x: string]: EnumValue } =>
+      Object.fromEntries(
+        Object.entries(obj)
+          .filter(([k]) => typeof obj[obj[k]] !== 'number')
+          .map(([k]) => [k, obj[k]])
+      )
+
     return new TEnum({
       typeName: TTypeName.Enum,
       options,
@@ -1197,7 +1194,7 @@ export class TNullable<T extends AnyTType> extends TType<
   TNullableDef<T>,
   T['_I'] | null
 > {
-  readonly hint = `${this.underlying.hint} | null`
+  readonly hint: `${T['hint']} | null` = `${this.underlying.hint} | null`
 
   _parse(ctx: ParseContextOf<this>): ParseResultOf<this> {
     return ctx.data === null
@@ -1246,7 +1243,7 @@ export class TOptional<T extends AnyTType> extends TType<
   TOptionalDef<T>,
   T['_I'] | undefined
 > {
-  readonly hint = `${this.underlying.hint} | undefined`
+  readonly hint: `${T['hint']} | undefined` = `${this.underlying.hint} | undefined`
 
   _parse(ctx: ParseContextOf<this>): ParseResultOf<this> {
     return ctx.data === undefined
@@ -1614,7 +1611,7 @@ export class TArray<
   T extends AnyTType,
   S extends TArrayState = TArrayInitialState
 > extends TType<TArrayIO<T, S, '_O'>, TArrayDef<T>, TArrayIO<T, S, '_I'>> {
-  readonly hint = `Array<${this.element.hint}>`
+  readonly hint = show.array(this.element)
 
   _parse(ctx: ParseContextOf<this>): ParseResultOf<this> {
     if (!Array.isArray(ctx.data)) {
@@ -1694,9 +1691,7 @@ export class TArray<
             }
           }
         }
-        return ctx.isValid()
-          ? ctx.OK(result as TArrayIO<T, S, '_O'>)
-          : ctx.ABORT()
+        return ctx.isValid() ? ctx.OK(result as this['_O']) : ctx.ABORT()
       })
     } else {
       for (const [index, value] of entries) {
@@ -1711,9 +1706,7 @@ export class TArray<
           }
         }
       }
-      return ctx.isValid()
-        ? ctx.OK(result as TArrayIO<T, S, '_O'>)
-        : ctx.ABORT()
+      return ctx.isValid() ? ctx.OK(result as this['_O']) : ctx.ABORT()
     }
   }
 
@@ -2006,6 +1999,8 @@ export type AnyTSet = TSet<AnyTType>
 export type TTupleItems = readonly [AnyTType, ...AnyTType[]] | readonly []
 export type TTupleRest = AnyTType
 
+export type TTupleCheck = checks.Min | checks.Max
+
 export type TTupleIO<
   T extends TTupleItems,
   R extends TTupleRest | null,
@@ -2025,8 +2020,6 @@ export type TTupleIO<
     ]
   : never
 
-export type TTupleCheck = checks.Min | checks.Max
-
 export interface TTupleDef<T extends TTupleItems, R extends TTupleRest | null>
   extends TDef {
   readonly typeName: TTypeName.Tuple
@@ -2039,9 +2032,7 @@ export class TTuple<
   T extends TTupleItems,
   R extends TTupleRest | null
 > extends TType<TTupleIO<T, R, '_O'>, TTupleDef<T, R>, TTupleIO<T, R, '_I'>> {
-  readonly hint = `[${this.items.map((i) => i.hint).join(', ')}${
-    this.restType ? `, ...${this.restType.hint}[]` : ''
-  }]`
+  readonly hint = show.tuple(this.items, this.restType)
 
   _parse(ctx: ParseContextOf<this>): ParseResultOf<this> {
     if (!Array.isArray(ctx.data)) {
@@ -2152,6 +2143,12 @@ export type AnyTTuple = TTuple<TTupleItems, TTupleRest | null>
 /*                                   Record                                   */
 /* -------------------------------------------------------------------------- */
 
+export type TRecordIO<
+  K extends AnyTType<PropertyKey>,
+  V extends AnyTType,
+  IO extends '_I' | '_O'
+> = utils.Simplify<utils.EnforceOptional<Record<K[IO], V[IO]>>>
+
 export interface TRecordDef<K extends AnyTType<PropertyKey>, V extends AnyTType>
   extends TDef {
   readonly typeName: TTypeName.Record
@@ -2163,9 +2160,9 @@ export class TRecord<
   K extends AnyTType<PropertyKey>,
   V extends AnyTType
 > extends TType<
-  Record<K['_O'], V['_O']>,
+  TRecordIO<K, V, '_O'>,
   TRecordDef<K, V>,
-  Record<K['_I'], V['_I']>
+  TRecordIO<K, V, '_I'>
 > {
   readonly hint: `Record<${K['hint']}, ${V['hint']}>` = `Record<${this.keys.hint}, ${this.values.hint}>`
 
@@ -2182,23 +2179,24 @@ export class TRecord<
           (ctx.data as Record<typeof k, unknown>)[k],
         ] as const
     )
-    const result = {} as Record<K['_I'], V['_I']>
+    const result = {} as Record<K['_O'], V['_O']>
 
     if (ctx.common.async) {
       return Promise.resolve().then(async () => {
         for (const [key, val] of data) {
+          const stringifiedKey = String(key)
           const keyResult = await keys._parseAsync(
             ctx.child({
               type: keys,
-              data: key,
-              path: [typeof key === 'symbol' ? String(key) : key],
+              data: Number.isNaN(+stringifiedKey) ? key : +stringifiedKey,
+              path: [typeof key === 'symbol' ? stringifiedKey : key],
             })
           )
           const valResult = await values._parseAsync(
             ctx.child({
               type: values,
               data: val,
-              path: [typeof key === 'symbol' ? String(key) : key],
+              path: [typeof key === 'symbol' ? stringifiedKey : key],
             })
           )
           if (keyResult.ok && valResult.ok) {
@@ -2207,22 +2205,23 @@ export class TRecord<
             return ctx.ABORT()
           }
         }
-        return ctx.isInvalid() ? ctx.ABORT() : ctx.OK(result)
+        return ctx.isInvalid() ? ctx.ABORT() : ctx.OK(result as any)
       })
     } else {
       for (const [key, val] of data) {
+        const stringifiedKey = String(key)
         const keyResult = keys._parseSync(
           ctx.child({
             type: keys,
-            data: key,
-            path: [typeof key === 'symbol' ? String(key) : key],
+            data: Number.isNaN(+stringifiedKey) ? key : +stringifiedKey,
+            path: [typeof key === 'symbol' ? stringifiedKey : key],
           })
         )
         const valResult = values._parseSync(
           ctx.child({
             type: values,
             data: val,
-            path: [typeof key === 'symbol' ? String(key) : key],
+            path: [typeof key === 'symbol' ? stringifiedKey : key],
           })
         )
         if (keyResult.ok && valResult.ok) {
@@ -2231,7 +2230,7 @@ export class TRecord<
           return ctx.ABORT()
         }
       }
-      return ctx.isInvalid() ? ctx.ABORT() : ctx.OK(result)
+      return ctx.isInvalid() ? ctx.ABORT() : ctx.OK(result as any)
     }
   }
 
@@ -2245,6 +2244,10 @@ export class TRecord<
 
   get entries(): readonly [K, V] {
     return [this.keys, this.values]
+  }
+
+  partial() {
+    return new TRecord({ ...this._def, values: this.values.optional() })
   }
 
   private static _create<V extends AnyTType>(
@@ -2445,9 +2448,9 @@ export type Deoptional<T extends AnyTType> = T extends TOptional<infer U>
 
 const deoptional = <T extends AnyTType>(type: T): Deoptional<T> =>
   type instanceof TOptional
-    ? deoptional(type.unwrap())
+    ? deoptional(type.unwrapDeep())
     : type instanceof TNullable
-    ? tnullable(deoptional(type.unwrap()))
+    ? TNullable.create(deoptional(type.unwrapDeep()), type.options)
     : type
 
 export type TObjectRequiredShape<
@@ -2486,9 +2489,11 @@ export class TObject<
   TObjectDef<S, UK, C>,
   TObjectIO<S, UK, C, '_I'>
 > {
-  readonly hint = `{${Object.entries(this.shape)
-    .map(([key, type]) => `${key}: ${type.hint}`)
-    .join(', ')}}`
+  readonly hint = show.object(
+    this.shape,
+    this._def.unknownKeys,
+    this._def.catchall
+  )
 
   _parse(ctx: ParseContextOf<this>): ParseResultOf<this> {
     if (!utils.isObject(ctx.data)) {
@@ -2768,6 +2773,186 @@ export type AnyTObject<S extends TObjectShape = TObjectShape> = TObject<
 >
 
 /* -------------------------------------------------------------------------- */
+/*                                  Function                                  */
+/* -------------------------------------------------------------------------- */
+
+export type TFunctionOuterIO<A extends AnyTTuple, R extends AnyTType> = (
+  ...args: A['_I']
+) => R['_O']
+
+export type TFunctionInnerIO<A extends AnyTTuple, R extends AnyTType> = (
+  ...args: A['_O']
+) => R['_I']
+
+export type TFunctionArgsHint<
+  TupleItems,
+  TupleRest extends TTupleRest | null,
+  _Acc extends readonly unknown[] = []
+> = TupleItems extends [{ readonly hint: infer HH extends string }, ...infer R]
+  ? `args_${_Acc['length']}: ${HH}${R extends []
+      ? TupleRest extends { readonly hint: infer RH extends string }
+        ? `, ...args_${[..._Acc, unknown]['length'] & number}: ${RH}[]`
+        : ''
+      : ', '}${TFunctionArgsHint<R, TupleRest, [..._Acc, unknown]>}`
+  : ''
+
+export type TFunctionHint<
+  A extends AnyTTuple,
+  R extends AnyTType
+> = `(${TFunctionArgsHint<A['items'], A['restType']>}) => ${R['hint']}`
+
+export interface TFunctionDef<A extends AnyTTuple, R extends AnyTType>
+  extends TDef {
+  readonly typeName: TTypeName.Function
+  readonly args: A
+  readonly returns: R
+}
+
+export class TFunction<A extends AnyTTuple, R extends AnyTType> extends TType<
+  TFunctionOuterIO<A, R>,
+  TFunctionDef<A, R>,
+  TFunctionInnerIO<A, R>
+> {
+  readonly hint: TFunctionHint<A, R> = `(${this.parameters.items
+    .map((i, idx) => `args_${idx}: ${i.hint}`)
+    .join(', ')}${
+    this.parameters.restType
+      ? `, ...args_${this.parameters.items.length}: ${this.parameters.restType.hint}[]`
+      : ''
+  }) => ${this.returnType.hint}` as TFunctionHint<A, R>
+
+  _parse(ctx: ParseContextOf<this>): ParseResultOf<this> {
+    if (!(typeof ctx.data === 'function')) {
+      return ctx.INVALID_TYPE({ expected: TParsedType.Function }).ABORT()
+    }
+
+    const { args: argsType, returns: returnType } = this._def
+    const fn = ctx.data
+    const parseOptions = ctx.common
+
+    if (returnType instanceof TPromise) {
+      return ctx.OK(async (...args: readonly unknown[]) => {
+        const parsedArgs = await argsType.safeParseAsync(args, parseOptions)
+        if (!parsedArgs.ok) {
+          throw ParseContext.createAsync(argsType, args, parseOptions)
+            .INVALID_ARGUMENTS({ error: parsedArgs.error })
+            .ABORT().error
+        }
+        const result = await fn(...(parsedArgs.data as readonly unknown[]))
+        const parsedResult = await returnType.safeParseAsync(
+          result,
+          parseOptions
+        )
+        if (!parsedResult.ok) {
+          throw ParseContext.createAsync(returnType, result, ctx.common)
+            .INVALID_RETURN_TYPE({ error: parsedResult.error })
+            .ABORT().error
+        }
+        return parsedResult.data
+      })
+    } else {
+      return ctx.OK((...args: readonly unknown[]) => {
+        const parsedArgs = argsType.safeParse(args, parseOptions)
+        if (!parsedArgs.ok) {
+          throw ParseContext.createAsync(argsType, args, parseOptions)
+            .INVALID_ARGUMENTS({ error: parsedArgs.error })
+            .ABORT().error
+        }
+        const result = fn(...(parsedArgs.data as readonly unknown[]))
+        const parsedResult = returnType.safeParse(result, parseOptions)
+        if (!parsedResult.ok) {
+          throw ParseContext.createAsync(returnType, result, ctx.common)
+            .INVALID_RETURN_TYPE({ error: parsedResult.error })
+            .ABORT().error
+        }
+        return parsedResult.data
+      })
+    }
+  }
+
+  get parameters(): A {
+    return this._def.args
+  }
+
+  get returnType(): R {
+    return this._def.returns
+  }
+
+  args<A_ extends TTupleItems>(args: A_): TFunction<TTuple<A_, null>, R>
+  args<A_ extends TTupleItems, AR_ extends TTupleRest>(
+    args: A_,
+    rest: AR_
+  ): TFunction<TTuple<A_, AR_>, R>
+  args<A_ extends TTupleItems, AR_ extends TTupleRest>(args: A_, rest?: AR_) {
+    return new TFunction({
+      ...this._def,
+      args: rest ? TTuple.create(args, rest) : TTuple.create(args),
+    })
+  }
+
+  returns<R_ extends AnyTType>(returns: R_): TFunction<A, R_> {
+    return new TFunction({ ...this._def, returns })
+  }
+
+  implement<F extends TFunctionInnerIO<A, R>>(
+    fn: F
+  ): ReturnType<F> extends R['_O']
+    ? (...args: A['_I']) => ReturnType<F>
+    : TFunctionOuterIO<A, R> {
+    return this.parse(fn) as ReturnType<F> extends R['_O']
+      ? (...args: A['_I']) => ReturnType<F>
+      : TFunctionOuterIO<A, R>
+  }
+
+  strictImplement(fn: TFunctionInnerIO<A, R>): TFunctionInnerIO<A, R> {
+    return this.parse(fn)
+  }
+
+  validate<F extends TFunctionInnerIO<A, R>>(fn: F) {
+    return this.implement(fn)
+  }
+
+  private static _create<A extends TTupleItems>(
+    args: A,
+    options?: CreateOptions
+  ): TFunction<TTuple<A, null>, TUnknown>
+  private static _create<A extends AnyTTuple>(
+    args: A,
+    options?: CreateOptions
+  ): TFunction<A, TUnknown>
+  private static _create<A extends TTupleItems, R extends AnyTType>(
+    args: A,
+    returns: R,
+    options?: CreateOptions
+  ): TFunction<TTuple<A, null>, R>
+  private static _create<A extends AnyTTuple, R extends AnyTType>(
+    args: A,
+    returns: R,
+    options?: CreateOptions
+  ): TFunction<A, R>
+  private static _create(
+    args: TTupleItems | AnyTTuple,
+    returnsOrOptions?: AnyTType | CreateOptions,
+    options?: CreateOptions
+  ): TFunction<any, any> {
+    return new TFunction({
+      typeName: TTypeName.Function,
+      options: returnsOrOptions instanceof TType ? options : returnsOrOptions,
+      args: args instanceof TTuple ? args : TTuple.create(args),
+      returns:
+        returnsOrOptions instanceof TType
+          ? returnsOrOptions
+          : TUnknown.create(),
+      checks: [],
+    })
+  }
+
+  static create = this._create
+}
+
+export type AnyTFunction = TFunction<AnyTTuple, AnyTType>
+
+/* -------------------------------------------------------------------------- */
 /*                                    Union                                   */
 /* -------------------------------------------------------------------------- */
 
@@ -3035,7 +3220,7 @@ const createSyncRefinementExecutor: RefinementExecutorCreator =
     const result = effect.refine(data, effectCtx)
     if (result instanceof Promise) {
       throw new TypeError(
-        'Async refinement encountered during synchronous parse operation. Use .parseAsync instead.'
+        'Async refinement encountered during synchronous parse operation. Use `.parseAsync` instead.'
       )
     }
     return result
@@ -3382,7 +3567,7 @@ export type TTypeNameMap = {
   [TTypeName.Effects]: AnyTEffects
   [TTypeName.Enum]: AnyTEnum
   [TTypeName.False]: TFalse
-  [TTypeName.Function]: TAny
+  [TTypeName.Function]: AnyTFunction
   [TTypeName.InstanceOf]: AnyTInstanceOf
   [TTypeName.Intersection]: AnyTIntersection
   [TTypeName.Lazy]: AnyTLazy
@@ -3422,6 +3607,8 @@ const tdate = TDate.create
 const tdefault = TDefault.create
 const tenum = TEnum.create
 const tfalse = TFalse.create
+const tfunction = TFunction.create
+const tfn = TFunction.create // alias for `tfunction`
 const tinstanceof = TInstanceOf.create
 const tintersection = TIntersection.create
 const tlazy = TLazy.create
@@ -3466,6 +3653,8 @@ export {
   tdefault as default,
   tenum as enum,
   tfalse as false,
+  tfn as fn,
+  tfunction as function,
   tglobal as global,
   tinstanceof as instanceof,
   tintersection as intersection,
