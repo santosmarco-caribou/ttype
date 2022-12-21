@@ -25,6 +25,13 @@ export namespace utils {
   export type Defined<T> = T extends undefined ? never : T
   export type Simplify<T> = T extends _internals.BuiltIn | AnyTType ? T : { 0: { [K in keyof T]: Simplify<T[K]> }; 1: T }[Equals<T, unknown>]
   export type Literalized<T extends Primitive = Primitive> = T extends string ? `"${T}"` : T extends number | boolean | null | undefined ? `${T}` : T extends bigint ? `${T}n` : 'symbol'
+  export type Join<T extends readonly unknown[], D extends string> = T extends readonly []
+    ? ''
+    : T extends readonly [string | number | bigint | boolean | null | undefined]
+    ? `${T[0]}`
+    : T extends readonly [string | number | bigint | boolean | null | undefined, ...infer Rest extends readonly unknown[]]
+    ? `${T[0]}${D}${Join<Rest, D>}`
+    : string
   export type ReplaceAll<T, From extends string, To extends string> = T extends `${infer A}${From}${infer B}` ? `${A}${To}${ReplaceAll<B, From, To>}` : T
   export type OptionalKeys<T> = { [K in keyof T]: undefined extends T[K] ? K : never }[keyof T]
   export type RequiredKeys<T> = { [K in keyof T]: undefined extends T[K] ? never : K }[keyof T]
@@ -37,6 +44,7 @@ export namespace utils {
   export type LiteralUnion<T, U extends Primitive> = T | (U & Record<never, never>)
   export type UnionToIntersection<T> = (T extends unknown ? (x: T) => void : never) extends (i: infer I) => void ? I : never
   export type GetLastOfUnion<T> = ((T extends unknown ? (x: () => T) => void : never) extends (i: infer I) => void ? I : never) extends () => infer Last ? Last : never
+  export type CastToArray<T> = T extends readonly unknown[] ? T : never
   export type ConstructTuple<T, L extends number> = _internals.ConstructTuple<T, L>
   export type PartialTuple<T> = T extends readonly [] ? T : T extends readonly [infer H, ...infer R] ? [H?, ...PartialTuple<R>] : never
   export type UnionToTuple<T> = _internals.UnionToTuple<T>
