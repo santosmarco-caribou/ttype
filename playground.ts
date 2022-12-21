@@ -16,3 +16,5 @@ Food.parse({
   description: 'bar',
   calories: 100,
 })
+
+const sadas = t.string().default('a').hint

@@ -31,7 +31,6 @@ export interface TOptions extends CreateOptions {
 
 export interface TDef {
   readonly typeName: TTypeName
-  readonly hint: string
   readonly options: TOptions | undefined
   readonly checks?: readonly { readonly kind: string }[]
 }
@@ -40,10 +39,7 @@ export abstract class TType<O, Def extends TDef, I = O> {
   readonly _O!: O
   readonly _I!: I
 
-  protected readonly _def: utils.Merge<
-    Omit<Def, 'hint'>,
-    { readonly options: TOptions }
-  >
+  protected readonly _def: utils.Merge<Def, { readonly options: TOptions }>
 
   readonly id: string = nanoid()
 
@@ -55,7 +51,7 @@ export abstract class TType<O, Def extends TDef, I = O> {
     return this._def.options
   }
 
-  protected constructor(def: Omit<Def, 'hint'>) {
+  protected constructor(def: Def) {
     this._def = { ...def, options: { ...def.options } }
 
     this._parse = utils.memoize(this._parse.bind(this))
@@ -81,6 +77,7 @@ export abstract class TType<O, Def extends TDef, I = O> {
     this.refine = this.refine.bind(this)
     this.transform = this.transform.bind(this)
     this.preprocess = this.preprocess.bind(this)
+    this.pipe = this.pipe.bind(this)
 
     Object.getOwnPropertyNames(this)
       .filter((prop) => prop.match(/^\$?_/))
@@ -91,7 +88,7 @@ export abstract class TType<O, Def extends TDef, I = O> {
 
   abstract _parse(ctx: ParseContext<unknown, O, I>): ParseResultOf<this>
 
-  abstract readonly hint: Def['hint']
+  abstract readonly hint: string
 
   _parseSync(ctx: ParseContext<unknown, O, I>): SyncParseResultOf<this> {
     const result = this._parse(ctx)
@@ -142,11 +139,11 @@ export abstract class TType<O, Def extends TDef, I = O> {
   }
 
   optional(): TOptional<this> {
-    return TOptional.create(this)
+    return TOptional.create(this, this.options)
   }
 
   nullable(): TNullable<this> {
-    return TNullable.create(this)
+    return TNullable.create(this, this.options)
   }
 
   nullish(): TOptional<TNullable<this>> {
@@ -156,39 +153,42 @@ export abstract class TType<O, Def extends TDef, I = O> {
   or<T extends [AnyTType, ...AnyTType[]]>(
     ...types: T
   ): TUnion<[this, T[0], ...utils.Tail<T>]> {
-    return TUnion.create([this, types[0], ...utils.tail(types)])
+    return TUnion.create([this, types[0], ...utils.tail(types)], this.options)
   }
 
   and<T extends [AnyTType, ...AnyTType[]]>(
     ...types: T
   ): TIntersection<[this, T[0], ...utils.Tail<T>]> {
-    return TIntersection.create([this, types[0], ...utils.tail(types)])
+    return TIntersection.create(
+      [this, types[0], ...utils.tail(types)],
+      this.options
+    )
   }
 
   array(): TArray<this> {
-    return TArray.create(this)
+    return TArray.create(this, this.options)
   }
 
   promise(): TPromise<this> {
-    return TPromise.create(this)
+    return TPromise.create(this, this.options)
   }
 
   brand<B extends PropertyKey>(brand: B): TBranded<this, B> {
-    return TBranded.create(this, brand)
+    return TBranded.create(this, brand, this.options)
   }
 
   default<D extends utils.Defined<I>>(
     defaultValue: D | (() => D)
   ): TDefault<this, D> {
-    return TDefault.create(this, defaultValue)
+    return TDefault.create(this, defaultValue, this.options)
   }
 
   catch<C extends I>(catchValue: C | (() => C)): TCatch<this, C> {
-    return TCatch.create(this, catchValue)
+    return TCatch.create(this, catchValue, this.options)
   }
 
   lazy(): TLazy<this> {
-    return TLazy.create(() => this)
+    return TLazy.create(() => this, this.options)
   }
 
   refine<O_ extends O>(
@@ -203,17 +203,21 @@ export abstract class TType<O, Def extends TDef, I = O> {
     check: (data: O) => unknown,
     message?: RefinementMsgArg<O>
   ): TEffects<this> {
-    return TEffects.refine(this, check, message)
+    return TEffects.refine(this, check, message, this.options)
   }
 
   transform<O_>(
     transform: (data: O, ctx: EffectContext<O>) => O_ | Promise<O_>
   ): TEffects<this, O_> {
-    return TEffects.transform(this, transform)
+    return TEffects.transform(this, transform, this.options)
   }
 
   preprocess(preprocess: (data: unknown) => I): TEffects<this> {
-    return TEffects.preprocess(preprocess, this)
+    return TEffects.preprocess(preprocess, this, this.options)
+  }
+
+  pipe<O_, T extends AnyTType<O_, I>>(type: T): TPipeline<this, T> {
+    return TPipeline.create(this, type)
   }
 
   protected _addCheck<K extends utils.Defined<Def['checks']>[number]['kind']>(
@@ -984,7 +988,7 @@ export type CastToEnumLike<T> = utils.Simplify<
     : never
   : never
 
-export type TEnumExtract<
+export type EnumExtract<
   T extends EnumLike,
   V extends T[keyof T]
 > = CastToEnumLike<{
@@ -992,8 +996,7 @@ export type TEnumExtract<
     ? K
     : never]: T[K]
 }>
-
-export type TEnumExclude<
+export type EnumExclude<
   T extends EnumLike,
   V extends T[keyof T]
 > = CastToEnumLike<{
@@ -1026,12 +1029,13 @@ export const getValidEnumObject = <T extends EnumLike>(obj: T) =>
 
 export interface TEnumDef<T extends EnumLike> extends TDef {
   readonly typeName: TTypeName.Enum
-  readonly hint: TEnumHint<T>
   readonly enum: T
 }
 
 export class TEnum<T extends EnumLike> extends TType<T[keyof T], TEnumDef<T>> {
-  readonly hint = this.values.map(utils.literalize).join(' | ') as TEnumHint<T>
+  readonly hint: TEnumHint<T> = this.values
+    .map(utils.literalize)
+    .join(' | ') as TEnumHint<T>
 
   _parse(ctx: ParseContextOf<this>): ParseResultOf<this> {
     const enumTypes = [
@@ -1079,10 +1083,10 @@ export class TEnum<T extends EnumLike> extends TType<T[keyof T], TEnumDef<T>> {
 
   extract<V extends T[keyof T]>(
     ...values: readonly [V, ...V[]]
-  ): TEnum<TEnumExtract<T, V>>
+  ): TEnum<EnumExtract<T, V>>
   extract<V extends T[keyof T]>(
     values: readonly [V, ...V[]]
-  ): TEnum<TEnumExtract<T, V>>
+  ): TEnum<EnumExtract<T, V>>
   extract<V extends T[keyof T]>(...values: readonly [V, ...V[]]) {
     const valuesArr = Array.isArray(values[0]) ? values[0] : values
     return new TEnum({
@@ -1092,16 +1096,16 @@ export class TEnum<T extends EnumLike> extends TType<T[keyof T], TEnumDef<T>> {
         Object.entries(this.enum).filter(([_, v]) =>
           utils.includes(valuesArr, v)
         )
-      ) as TEnumExtract<T, V>,
+      ) as EnumExtract<T, V>,
     })
   }
 
   exclude<V extends T[keyof T]>(
     ...values: readonly [V, ...V[]]
-  ): TEnum<TEnumExclude<T, V>>
+  ): TEnum<EnumExclude<T, V>>
   exclude<V extends T[keyof T]>(
     values: readonly [V, ...V[]]
-  ): TEnum<TEnumExclude<T, V>>
+  ): TEnum<EnumExclude<T, V>>
   exclude<V extends T[keyof T]>(...values: readonly [V, ...V[]]) {
     const valuesArr = Array.isArray(values[0]) ? values[0] : values
     return new TEnum({
@@ -1111,7 +1115,7 @@ export class TEnum<T extends EnumLike> extends TType<T[keyof T], TEnumDef<T>> {
         Object.entries(this.enum).filter(
           ([_, v]) => !utils.includes(valuesArr, v)
         )
-      ) as TEnumExclude<T, V>,
+      ) as EnumExclude<T, V>,
     })
   }
 
@@ -1340,7 +1344,7 @@ export class TPromise<T extends AnyTType> extends TType<
   TPromiseDef<T>,
   Promise<T['_I']>
 > {
-  readonly hint = `Promise<${this.awaited.hint}>`
+  readonly hint: `Promise<${T['hint']}>` = `Promise<${this.awaited.hint}>`
 
   _parse(ctx: ParseContextOf<this>): ParseResultOf<this> {
     if (!(ctx.data instanceof Promise) && ctx.common.async === false) {
@@ -3248,6 +3252,73 @@ export class TEffects<
 export type AnyTEffects = TEffects<AnyTType>
 
 /* -------------------------------------------------------------------------- */
+/*                                  Pipeline                                  */
+/* -------------------------------------------------------------------------- */
+
+export interface TPipelineDef<In extends AnyTType, Out extends AnyTType>
+  extends TDef {
+  readonly typeName: TTypeName.Pipeline
+  readonly in: In
+  readonly out: Out
+}
+
+export class TPipeline<In extends AnyTType, Out extends AnyTType> extends TType<
+  Out['_O'],
+  TPipelineDef<In, Out>,
+  In['_I']
+> {
+  readonly hint: `Pipeline<${Out['hint']}, ${In['hint']}>` = `Pipeline<${this.out['hint']}, ${this.in['hint']}>`
+
+  _parse(ctx: ParseContextOf<this>): ParseResultOf<this> {
+    if (ctx.common.async) {
+      return Promise.resolve().then(async () => {
+        const inRes = await this.in._parseAsync(ctx.clone({ type: this.in }))
+        if (!inRes.ok) {
+          return ctx.ABORT()
+        }
+        ctx.setData(inRes.data)
+        return this.out._parseAsync(ctx.clone({ type: this.out }))
+      })
+    } else {
+      const inRes = this.in._parseSync(ctx.clone({ type: this.in }))
+      if (!inRes.ok) {
+        return ctx.ABORT()
+      }
+      ctx.setData(inRes.data)
+      return this.out._parseSync(ctx.clone({ type: this.out }))
+    }
+  }
+
+  get in(): In {
+    return this._def.in
+  }
+
+  get out(): Out {
+    return this._def.out
+  }
+
+  static create = <
+    A,
+    B,
+    C,
+    In extends AnyTType<B, A>,
+    Out extends AnyTType<C, B>
+  >(
+    a: In,
+    b: Out,
+    options?: CreateOptions
+  ): TPipeline<In, Out> =>
+    new TPipeline<In, Out>({
+      typeName: TTypeName.Pipeline,
+      options,
+      in: a,
+      out: b,
+    })
+}
+
+export type AnyTPipeline = TPipeline<AnyTType, AnyTType>
+
+/* -------------------------------------------------------------------------- */
 /*                                   Extras                                   */
 /* -------------------------------------------------------------------------- */
 
@@ -3324,7 +3395,7 @@ export type TTypeNameMap = {
   [TTypeName.Number]: TNumber
   [TTypeName.Object]: AnyTObject
   [TTypeName.Optional]: AnyTOptional
-  [TTypeName.Pipeline]: TAny
+  [TTypeName.Pipeline]: AnyTPipeline
   [TTypeName.Promise]: AnyTPromise
   [TTypeName.Record]: AnyTRecord
   [TTypeName.Set]: AnyTSet
@@ -3364,6 +3435,7 @@ const tnullish = TNullish.create
 const tnumber = TNumber.create
 const tobject = TObject.create
 const toptional = TOptional.create
+const tpipeline = TPipeline.create
 const tpromise = TPromise.create
 const trecord = TRecord.create
 const tset = TSet.create
@@ -3408,6 +3480,7 @@ export {
   tnumber as number,
   tobject as object,
   toptional as optional,
+  tpipeline as pipeline,
   tpreprocess as preprocess,
   tpromise as promise,
   trecord as record,
