@@ -1843,9 +1843,9 @@ export class TRecord<
   K extends AnyTType<PropertyKey>,
   V extends AnyTType
 > extends TType<
-  { [k in K['_O']]: V['_O'] },
+  Record<K['_O'], V['_O']>,
   TRecordDef<K, V>,
-  { [k in K['_I']]: V['_I'] }
+  Record<K['_I'], V['_I']>
 > {
   readonly hint: `Record<${K['hint']}, ${V['hint']}>` = `Record<${this.keys.hint}, ${this.values.hint}>`
 
