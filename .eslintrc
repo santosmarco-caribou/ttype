@@ -16,12 +16,16 @@
     "plugin:compat/recommended"
   ],
   "rules": {
-    "@typescript-eslint/no-unused-vars": ["error", { "argsIgnorePattern": "^_" }],
+    "@typescript-eslint/no-explicit-any": "off",
+    "@typescript-eslint/no-unused-vars": [
+      "error",
+      { "argsIgnorePattern": "^_" }
+    ],
     "@typescript-eslint/no-namespace": "off"
   },
   "overrides": [
     {
-      "files": ["__test__/**/*"],
+      "files": ["__test__/**/*.spec.ts"],
       "parserOptions": {
         "project": "./tsconfig.test.json"
       }
@@ -29,7 +33,7 @@
     {
       "files": ["playground.ts"],
       "parserOptions": {
-        "project": "./tsconfig.playground.json"
+        "project": "./tsconfig.json"
       }
     }
   ]

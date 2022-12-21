@@ -17,5 +17,5 @@
     "strictPropertyInitialization": false,
     "target": "es2018"
   },
-  "include": ["./src/**/*", "./.eslintrc.js"]
+  "include": ["src/**/*.ts"]
 }

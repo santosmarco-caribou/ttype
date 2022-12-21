@@ -12,14 +12,15 @@
     "build:deno": "node ./deno/build.mjs && cp ./README.md ./deno/lib",
     "build:esm": "rollup --config rollup.config.js",
     "build:types": "tsc -p tsconfig.types.json",
+    "clean": "rm -rf lib/* deno/lib/*",
     "format:check": "prettier . --check",
     "format:write": "prettier . --write",
     "lint:check": "eslint . --ext .ts,.tsx",
     "lint:fix": "eslint . --ext .ts,.tsx --fix",
     "rollup": "rollup --config rollup.config.js",
     "test": "jest",
-    "clean": "rm -rf lib/* deno/lib/*",
-    "test:watch": "jest --watchAll"
+    "test:watch": "jest --watchAll",
+    "test:watch:verbose": "jest --watchAll --verbose"
   },
   "browserslist": [
     "defaults and supports es6-module",

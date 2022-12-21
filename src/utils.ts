@@ -5,18 +5,20 @@ import isSameOrAfter from 'dayjs/plugin/isSameOrAfter'
 import isSameOrBefore from 'dayjs/plugin/isSameOrBefore'
 import { isPlainObject } from 'is-plain-object'
 import { N } from 'ts-toolbelt'
-import type { NonNegativeInteger, Primitive } from 'type-fest'
+import type { NonNegativeInteger } from 'type-fest'
 import type { AnyTType } from './types'
 
-_dayjs.extend(isSameOrBefore)
-_dayjs.extend(isSameOrAfter)
-_dayjs.extend(isBetween)
-
 export namespace utils {
+  _dayjs.extend(isSameOrBefore)
+  _dayjs.extend(isSameOrAfter)
+  _dayjs.extend(isBetween)
+
   export const UNSET_MARKER = Symbol('UNSET_MARKER')
   export type UNSET_MARKER = typeof UNSET_MARKER
   export type TUPLE_MAX_LENGTH = 600
-  export type AnyFunction = ((...args: readonly any[]) => any) | (abstract new (...args: readonly any[]) => any)
+  export type Primitive = string | number | bigint | boolean | symbol | null | undefined
+  export type Class = abstract new (...args: readonly any[]) => any
+  export type AnyFunction = ((...args: readonly any[]) => any) | Class
   export type Equals<T, U> = (<X>() => X extends T ? 1 : 0) extends <Y>() => Y extends U ? 1 : 0 ? 1 : 0
   export type Literalized<T extends Primitive = Primitive> = T extends string ? `"${T}"` : T extends number | boolean | null | undefined ? `${T}` : T extends bigint ? `${T}n` : 'symbol'
   export type Simplify<T> = T extends _internals.BuiltIn | AnyTType ? T : { 0: { [K in keyof T]: Simplify<T[K]> }; 1: T }[Equals<T, unknown>]
@@ -44,8 +46,8 @@ export namespace utils {
     `${T['label'] extends string ? `"${T['label']}"` : 'Input value'} must be ${Sign} ${U['label'] extends string ? `"${U['label']}" (${U['value']})` : U['value']}; got ${T['value']}`
   >
   /* ------------------------------- Type guards ------------------------------ */
-  export const isPrimitive = (value: unknown): value is Primitive => value === null || includes(['string', 'number', 'bigint', 'boolean', 'symbol', 'undefined'], typeof value)
   export const isObject = (value: unknown): value is Record<string, unknown> => isPlainObject(value)
+  export const isPrimitive = (value: unknown): value is Primitive => value === null || ['string', 'number', 'bigint', 'boolean', 'symbol', 'undefined'].includes(typeof value)
   /* --------------------------------- Strings -------------------------------- */
   export const literalize = <T extends Primitive>(value: T) => {
     return (() => {

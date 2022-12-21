@@ -25,7 +25,6 @@ specifiers:
   typescript: ^4.9.4
 
 dependencies:
-  '@types/merge-deep': 3.0.0
   clone-deep: 4.0.1
   dayjs: 1.11.7
   is-plain-object: 5.0.0
@@ -36,6 +35,7 @@ devDependencies:
   '@rollup/plugin-typescript': 10.0.1_oj4jlwi3mkekxo3vucumcwebnq
   '@types/clone-deep': 4.0.1
   '@types/jest': 29.2.4
+  '@types/merge-deep': 3.0.0
   '@types/node': 18.11.16
   '@typescript-eslint/eslint-plugin': 5.46.1_mqzxmroayievgzgel6yrqgih5i
   '@typescript-eslint/parser': 5.46.1_lzzuuodtsqwxnvqeq4g4likcqa
@@ -846,7 +846,7 @@ packages:
 
   /@types/merge-deep/3.0.0:
     resolution: {integrity: sha512-t5B5UfacpaP8opUvFGUwT0uQetFrD+qm1/I2ksxokJFLT0Tb4B2NI2G2LYz3ugMDKOE7adkNBZ6coK7RW6MAqA==}
-    dev: false
+    dev: true
 
   /@types/node/18.11.16:
     resolution: {integrity: sha512-6T7P5bDkRhqRxrQtwj7vru+bWTpelgtcETAZEUSdq0YISKz8WKdoBukQLYQQ6DFHvU9JRsbFq0JH5C51X2ZdnA==}
