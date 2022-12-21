@@ -2116,6 +2116,37 @@ export class TTuple<
     return this._def.rest
   }
 
+  push<T_ extends [AnyTType, ...AnyTType[]]>(
+    ...items: T_
+  ): TTuple<T extends readonly [] ? T_ : readonly [...T, ...T_], R>
+  push<T_ extends [AnyTType, ...AnyTType[]]>(
+    items: T_
+  ): TTuple<T extends readonly [] ? T_ : readonly [...T, ...T_], R>
+  push<T_ extends [AnyTType, ...AnyTType[]]>(...items: T_) {
+    return new TTuple({
+      ...this._def,
+      items: this.items[0]
+        ? [
+            this.items[0],
+            ...utils.tail(this.items),
+            ...(utils.isArray(items[0]) ? items[0] : items),
+          ]
+        : utils.isArray(items[0])
+        ? items[0]
+        : items,
+    })
+  }
+
+  append<T_ extends [AnyTType, ...AnyTType[]]>(
+    ...items: T_
+  ): TTuple<T extends readonly [] ? T_ : readonly [...T, ...T_], R>
+  append<T_ extends [AnyTType, ...AnyTType[]]>(
+    items: T_
+  ): TTuple<T extends readonly [] ? T_ : readonly [...T, ...T_], R>
+  append<T_ extends [AnyTType, ...AnyTType[]]>(...items: T_) {
+    return this.push(items)
+  }
+
   rest<R_ extends TTupleRest>(rest: R_): TTuple<T, R_> {
     return new TTuple({ ...this._def, rest })
   }
@@ -2482,6 +2513,45 @@ const makeShapeRequired = <S extends TObjectShape, K extends keyof S = keyof S>(
     ])
   ) as TObjectRequiredShape<S, K>
 
+export type MergeTObjectsDeep<A, B> = [A, B] extends [
+  TObject<infer SA, TObjectUnknownKeys | null, TObjectCatchall | null>,
+  TObject<infer SB, infer UKB, infer CB>
+]
+  ? TObject<
+      {
+        [K in keyof SA | keyof SB]: K extends keyof SA
+          ? K extends keyof SB
+            ? SA[K] extends TObject<infer SC, infer UKC, infer CC>
+              ? SB[K] extends TObject<infer SD, infer UKD, infer CD>
+                ? MergeTObjectsDeep<TObject<SC, UKC, CC>, TObject<SD, UKD, CD>>
+                : SA[K]
+              : SA[K]
+            : SA[K]
+          : K extends keyof SB
+          ? SB[K]
+          : never
+      },
+      UKB,
+      CB
+    >
+  : never
+
+type _DeepKeysTuple<T> = T extends readonly []
+  ? never
+  : T extends readonly [infer H, ...infer R]
+  ? H | (R extends [infer I] ? I : _DeepKeysTuple<R>)
+  : never
+type DeepKeysTuple<T> = _DeepKeysTuple<{ [K in keyof T]: K }>
+export type DeepKeys<S extends TObjectShape> = {
+  [K in keyof S]:
+    | K
+    | (S[K] extends AnyTObject<infer S_>
+        ? `${K & string}.${DeepKeys<S_> & string}`
+        : S[K] extends TTuple<infer I extends TTupleItems, TTupleRest | null>
+        ? `${K & string}[${DeepKeysTuple<I> & string}]`
+        : never)
+}[keyof S]
+
 export interface TObjectDef<
   S extends TObjectShape,
   UK extends TObjectUnknownKeys | null,
@@ -2495,12 +2565,12 @@ export interface TObjectDef<
 
 export class TObject<
   S extends TObjectShape,
-  UK extends TObjectUnknownKeys | null,
+  U extends TObjectUnknownKeys | null,
   C extends TObjectCatchall | null
 > extends TType<
-  TObjectIO<S, UK, C, '_O'>,
-  TObjectDef<S, UK, C>,
-  TObjectIO<S, UK, C, '_I'>
+  TObjectIO<S, U, C, '_O'>,
+  TObjectDef<S, U, C>,
+  TObjectIO<S, U, C, '_I'>
 > {
   readonly hint = `{ ${Object.entries(this.shape)
     .map(([k, v]) => `${k}${v.isOptional() ? '?' : ''}: ${v.hint}`)
@@ -2630,34 +2700,29 @@ export class TObject<
     return this._def.shape
   }
 
-  passthrough() {
+  get entries(): utils.Entries<S> {
+    return utils.entries(this.shape)
+  }
+
+  passthrough(): TObject<S, 'passthrough', null> {
     return this._setUnknownKeys('passthrough')
   }
 
-  strip() {
+  strip(): TObject<S, 'strip', null> {
     return this._setUnknownKeys('strip')
   }
 
-  strict() {
+  strict(): TObject<S, 'strict', null> {
     return this._setUnknownKeys('strict')
   }
 
-  catchall<C_ extends TObjectCatchall>(catchall: C_) {
+  catchall<C_ extends TObjectCatchall>(catchall: C_): TObject<S, null, C_> {
     return this._setCatchall(catchall)
   }
 
   augment<T extends TObjectShape>(
-    augmentation: T
-  ): TObject<utils.Merge<S, T>, UK, C>
-  augment<T extends TObjectShape>(
-    augmentation: AnyTObject<T>
-  ): TObject<utils.Merge<S, T>, UK, C>
-  augment<T extends TObjectShape>(
     augmentation: T | AnyTObject<T>
-  ): TObject<utils.Merge<S, T>, UK, C>
-  augment<T extends TObjectShape>(
-    augmentation: T | AnyTObject<T>
-  ): TObject<utils.Merge<S, T>, UK, C> {
+  ): TObject<utils.Merge<S, T>, U, C> {
     return this._setShape(
       utils.merge(
         this.shape,
@@ -2667,38 +2732,44 @@ export class TObject<
   }
 
   extend<T extends TObjectShape>(
-    extension: T
-  ): TObject<utils.Merge<S, T>, UK, C>
-  extend<T extends TObjectShape>(
-    extension: AnyTObject<T>
-  ): TObject<utils.Merge<S, T>, UK, C>
-  extend<T extends TObjectShape>(
     extension: T | AnyTObject<T>
-  ): TObject<utils.Merge<S, T>, UK, C>
-  extend<T extends TObjectShape>(
-    extension: T | AnyTObject<T>
-  ): TObject<utils.Merge<S, T>, UK, C> {
+  ): TObject<utils.Merge<S, T>, U, C> {
     return this.augment(extension)
+  }
+
+  setKey<K extends string, T extends AnyTType>(
+    key: K,
+    type: T
+  ): TObject<utils.Merge<S, { [k in K]: T }>, U, C> {
+    return this.augment({ [key]: type } as { [k in K]: T })
+  }
+
+  diff<T extends TObjectShape>(
+    other: T | AnyTObject<T>
+  ): TObject<utils.Diff<S, T>, U, C> {
+    return this._setShape(
+      utils.diff(this.shape, other instanceof TObject ? other.shape : other)
+    )
   }
 
   merge<
     S_ extends TObjectShape,
-    UK_ extends TObjectUnknownKeys | null,
+    U_ extends TObjectUnknownKeys | null,
     C_ extends TObjectCatchall | null
-  >(incoming: TObject<S_, UK_, C_>) {
+  >(incoming: TObject<S_, U_, C_>) {
     return incoming._setShape(utils.merge(this.shape, incoming.shape))
   }
 
-  setKey<K extends string, T extends AnyTType>(key: K, type: T) {
-    return this.augment({ [key]: type } as { [k in K]: T })
+  mergeDeep<T extends AnyTObject>(incoming: T) {
+    return incoming._setShape(
+      utils.mergeDeep(this.shape, incoming.shape)
+    ) as MergeTObjectsDeep<this, T>
   }
 
   pick<K extends keyof S>(
     ...keys: readonly [K, ...K[]]
-  ): TObject<Pick<S, K>, UK, C>
-  pick<K extends keyof S>(
-    keys: readonly [K, ...K[]]
-  ): TObject<Pick<S, K>, UK, C>
+  ): TObject<Pick<S, K>, U, C>
+  pick<K extends keyof S>(keys: readonly [K, ...K[]]): TObject<Pick<S, K>, U, C>
   pick<K extends keyof S>(...keys: readonly [K, ...K[]]) {
     return this._setShape(
       utils.pick(this.shape, Array.isArray(keys[0]) ? keys[0] : keys)
@@ -2707,10 +2778,8 @@ export class TObject<
 
   omit<K extends keyof S>(
     ...keys: readonly [K, ...K[]]
-  ): TObject<Omit<S, K>, UK, C>
-  omit<K extends keyof S>(
-    keys: readonly [K, ...K[]]
-  ): TObject<Omit<S, K>, UK, C>
+  ): TObject<Omit<S, K>, U, C>
+  omit<K extends keyof S>(keys: readonly [K, ...K[]]): TObject<Omit<S, K>, U, C>
   omit<K extends keyof S>(...keys: readonly [K, ...K[]]) {
     return this._setShape(
       utils.omit(this.shape, Array.isArray(keys[0]) ? keys[0] : keys)
@@ -2719,10 +2788,10 @@ export class TObject<
 
   partial<K extends keyof S = keyof S>(
     ...keys: readonly [K, ...K[]]
-  ): TObject<TObjectPartialShape<S, K>, UK, C>
+  ): TObject<TObjectPartialShape<S, K>, U, C>
   partial<K extends keyof S = keyof S>(
     keys?: readonly [K, ...K[]]
-  ): TObject<TObjectPartialShape<S, K>, UK, C>
+  ): TObject<TObjectPartialShape<S, K>, U, C>
   partial<K extends keyof S = keyof S>(...keys: readonly [K, ...K[]]) {
     return this._setShape(
       makeShapePartial(
@@ -2738,10 +2807,10 @@ export class TObject<
 
   required<K extends keyof S = keyof S>(
     ...keys: readonly [K, ...K[]]
-  ): TObject<TObjectRequiredShape<S, K>, UK, C>
+  ): TObject<TObjectRequiredShape<S, K>, U, C>
   required<K extends keyof S = keyof S>(
     keys?: readonly [K, ...K[]]
-  ): TObject<TObjectRequiredShape<S, K>, UK, C>
+  ): TObject<TObjectRequiredShape<S, K>, U, C>
   required<K extends keyof S = keyof S>(...keys: readonly [K, ...K[]]) {
     return this._setShape(
       makeShapeRequired(
@@ -2755,7 +2824,7 @@ export class TObject<
     return new TObject({ ...this._def, shape })
   }
 
-  private _setUnknownKeys<UK_ extends TObjectUnknownKeys>(unknownKeys: UK_) {
+  private _setUnknownKeys<U_ extends TObjectUnknownKeys>(unknownKeys: U_) {
     return new TObject({ ...this._def, unknownKeys, catchall: null })
   }
 
@@ -2763,26 +2832,43 @@ export class TObject<
     return new TObject({ ...this._def, catchall, unknownKeys: null })
   }
 
-  static create = Object.assign(
-    <S extends TObjectShape>(shape: S, options?: CreateOptions) =>
-      new TObject({
-        typeName: TTypeName.Object,
-        options,
-        shape,
-        unknownKeys: 'strip',
-        catchall: null,
-      }),
-    {
-      passthrough: <S extends TObjectShape>(
-        shape: S,
-        options?: CreateOptions
-      ) => this.create(shape, options).passthrough(),
-      strict: <S extends TObjectShape>(shape: S, options?: CreateOptions) =>
-        this.create(shape, options).strict(),
-      lazy: <S extends TObjectShape>(shape: () => S, options?: CreateOptions) =>
-        this.create(shape(), options),
-    }
-  )
+  private static _create = <S extends TObjectShape>(
+    shape: S,
+    options?: CreateOptions
+  ) =>
+    new TObject({
+      typeName: TTypeName.Object,
+      options,
+      shape,
+      unknownKeys: 'strip',
+      catchall: null,
+    })
+
+  private static _createWithPassthrough = <S extends TObjectShape>(
+    shape: S,
+    options?: CreateOptions
+  ) => TObject._create(shape, options).passthrough()
+
+  private static _strictCreate = <S extends TObjectShape>(
+    shape: S,
+    options?: CreateOptions
+  ) => TObject._create(shape, options).strict()
+
+  private static _lazyCreate = <S extends TObjectShape>(
+    shape: () => S,
+    options?: CreateOptions
+  ) => TObject._create(shape(), options)
+
+  private static _createFromEntries = <E extends [string, AnyTType]>(
+    entries: E[]
+  ) => TObject._create(utils.fromEntries(entries))
+
+  static create = Object.assign(this._create, {
+    passthrough: this._createWithPassthrough,
+    strict: this._strictCreate,
+    lazy: this._lazyCreate,
+    fromEntries: this._createFromEntries,
+  })
 }
 
 export type AnyTObject<S extends TObjectShape = TObjectShape> = TObject<
