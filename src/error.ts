@@ -24,8 +24,7 @@ export class TError<O = unknown, I = O> extends Error {
   }
 
   get message() {
-    console.log(this.issues)
-    return JSON.stringify(this.issues, null, 2)
+    return utils.jsonStringify(this.issues)
   }
 }
 

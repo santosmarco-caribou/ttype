@@ -2029,7 +2029,7 @@ export class TRecord<K extends AnyTType<PropertyKey>, V extends AnyTType> extend
   TRecordDef<K, V>,
   TRecordIO<K, V, '_I'>
 > {
-  readonly hint: `Record<${K['hint']}, ${V['hint']}>` = `Record<${this.keys.hint}, ${this.values.hint}>`
+  readonly hint = `Record<${this.keys.hint}, ${this.values.hint}>`
 
   _parse(ctx: ParseContextOf<this>): ParseResultOf<this> {
     if (!utils.isObject(ctx.data)) {
@@ -2157,7 +2157,7 @@ export class TMap<K extends AnyTType, V extends AnyTType> extends TType<
   TMapDef<K, V>,
   Map<K['_I'], V['_I']>
 > {
-  readonly hint: `Map<${K['hint']}, ${V['hint']}>` = `Map<${this.keys.hint}, ${this.values.hint}>`
+  readonly hint = `Map<${this.keys.hint}, ${this.values.hint}>`
 
   _parse(ctx: ParseContextOf<this>): ParseResultOf<this> {
     if (!(ctx.data instanceof Map)) {
@@ -2209,7 +2209,7 @@ export class TMap<K extends AnyTType, V extends AnyTType> extends TType<
     return this._def.values
   }
 
-  get entries(): readonly [K, V] {
+  get entries(): readonly [key: K, value: V] {
     return [this.keys, this.values]
   }
 
@@ -2250,17 +2250,6 @@ export type TObjectPartialShape<S extends TObjectShape, K extends keyof S = keyo
   { [k in K]: S[k] extends AnyTOptional ? S[k] : TOptional<S[k]> }
 >
 
-const makeShapePartial = <S extends TObjectShape, K extends keyof S = keyof S>(
-  shape: S,
-  keys?: readonly [K, ...K[]]
-) =>
-  Object.fromEntries(
-    Object.entries(shape).map(([key, type]) => [
-      key,
-      !keys || (utils.includes(keys, key) && !(type instanceof TOptional)) ? toptional(type) : type,
-    ])
-  ) as TObjectPartialShape<S, K>
-
 export type PartialDeep<T extends AnyTType> = T extends TObject<infer S, infer UK, infer C>
   ? TObject<{ [K in keyof S]: TOptional<PartialDeep<S[K]>> }, UK, C>
   : T extends TArray<infer El, infer St>
@@ -2300,26 +2289,10 @@ export type Deoptional<T extends AnyTType> = T extends TOptional<infer U>
 
 const deoptional = <T extends AnyTType>(type: T): Deoptional<T> =>
   type instanceof TOptional
-    ? deoptional(type.unwrapDeep())
+    ? deoptional(type.unwrap())
     : type instanceof TNullable
-    ? TNullable.create(deoptional(type.unwrapDeep()), type.options)
+    ? TNullable.create(deoptional(type.unwrap()), type.options)
     : type
-
-export type TObjectRequiredShape<S extends TObjectShape, K extends keyof S = keyof S> = utils.Merge<
-  S,
-  { [k in K]: Deoptional<S[k]> }
->
-
-const makeShapeRequired = <S extends TObjectShape, K extends keyof S = keyof S>(
-  shape: S,
-  keys?: readonly [K, ...K[]]
-) =>
-  Object.fromEntries(
-    Object.entries(shape).map(([key, type]) => [
-      key,
-      !keys || utils.includes(keys, key) ? deoptional(type) : type,
-    ])
-  ) as TObjectRequiredShape<S, K>
 
 export type MergeTObjectsDeep<A, B> = [A, B] extends [
   TObject<infer SA, TObjectUnknownKeys | null, TObjectCatchall | null>,
@@ -2536,29 +2509,52 @@ export class TObject<
     >
   }
 
-  pick<K extends keyof S>(...keys: readonly [K, ...K[]]): TObject<Pick<S, K>, U, C>
-  pick<K extends keyof S>(keys: readonly [K, ...K[]]): TObject<Pick<S, K>, U, C>
-  pick<K extends keyof S>(...keys: readonly [K, ...K[]]) {
+  pick<K extends keyof S, T extends readonly [K, ...K[]]>(
+    ...keys: T
+  ): TObject<Pick<S, T[number]>, U, C>
+  pick<K extends keyof S, T extends readonly [K, ...K[]]>(
+    keys: T
+  ): TObject<Pick<S, T[number]>, U, C>
+  pick<K extends keyof S, T extends readonly [K, ...K[]]>(...keys: T) {
     return this._setShape(utils.pick(this.shape, Array.isArray(keys[0]) ? keys[0] : keys))
   }
 
-  omit<K extends keyof S>(...keys: readonly [K, ...K[]]): TObject<Omit<S, K>, U, C>
-  omit<K extends keyof S>(keys: readonly [K, ...K[]]): TObject<Omit<S, K>, U, C>
-  omit<K extends keyof S>(...keys: readonly [K, ...K[]]) {
+  omit<K extends keyof S, T extends readonly [K, ...K[]]>(
+    ...keys: T
+  ): TObject<Omit<S, T[number]>, U, C>
+  omit<K extends keyof S, T extends readonly [K, ...K[]]>(
+    keys: T
+  ): TObject<Omit<S, T[number]>, U, C>
+  omit<K extends keyof S, T extends readonly [K, ...K[]]>(...keys: T) {
     return this._setShape(utils.omit(this.shape, Array.isArray(keys[0]) ? keys[0] : keys))
   }
 
-  partial<K extends keyof S = keyof S>(
-    ...keys: readonly [K, ...K[]]
-  ): TObject<TObjectPartialShape<S, K>, U, C>
-  partial<K extends keyof S = keyof S>(
-    keys?: readonly [K, ...K[]]
-  ): TObject<TObjectPartialShape<S, K>, U, C>
-  partial<K extends keyof S = keyof S>(...keys: readonly [K, ...K[]]) {
+  partial<K extends keyof S = keyof S, T extends readonly [K, ...K[]] = readonly [K, ...K[]]>(
+    ...keys: T
+  ): TObject<
+    utils.Merge<S, { [k in T[number]]: S[k] extends AnyTOptional ? S[k] : TOptional<S[k]> }>,
+    U,
+    C
+  >
+  partial<K extends keyof S = keyof S, T extends readonly [K, ...K[]] = readonly [K, ...K[]]>(
+    keys?: T
+  ): TObject<
+    utils.Merge<S, { [k in T[number]]: S[k] extends AnyTOptional ? S[k] : TOptional<S[k]> }>,
+    U,
+    C
+  >
+  partial<K extends keyof S = keyof S, T extends readonly [K, ...K[]] = readonly [K, ...K[]]>(
+    ...keys: T
+  ) {
+    const keysArr = Array.isArray(keys[0]) ? keys[0] : keys
     return this._setShape(
-      makeShapePartial(
-        this.shape,
-        (Array.isArray(keys[0]) ? keys[0] : keys) as readonly [K, ...K[]]
+      Object.fromEntries(
+        Object.entries(this.shape).map(([k, v]) => [
+          k,
+          (!keysArr || utils.includes(keysArr, k)) && !(v instanceof TOptional)
+            ? TOptional.create(v, v.options)
+            : v,
+        ])
       )
     )
   }
@@ -2567,17 +2563,25 @@ export class TObject<
     return makePartialDeep(this)
   }
 
-  required<K extends keyof S = keyof S>(
-    ...keys: readonly [K, ...K[]]
-  ): TObject<TObjectRequiredShape<S, K>, U, C>
-  required<K extends keyof S = keyof S>(
-    keys?: readonly [K, ...K[]]
-  ): TObject<TObjectRequiredShape<S, K>, U, C>
-  required<K extends keyof S = keyof S>(...keys: readonly [K, ...K[]]) {
+  required<K extends keyof S = keyof S, T extends readonly [K, ...K[]] = readonly [K, ...K[]]>(
+    ...keys: T
+  ): TObject<utils.Merge<S, { [k in T[number]]: Deoptional<S[k]> }>, U, C>
+  required<K extends keyof S = keyof S, T extends readonly [K, ...K[]] = readonly [K, ...K[]]>(
+    keys?: T
+  ): TObject<utils.Merge<S, { [k in T[number]]: Deoptional<S[k]> }>, U, C>
+  required<K extends keyof S = keyof S, T extends readonly [K, ...K[]] = readonly [K, ...K[]]>(
+    ...keys: T
+  ) {
+    const keysArr = Array.isArray(keys[0]) ? keys[0] : keys
     return this._setShape(
-      makeShapeRequired(
-        this.shape,
-        (Array.isArray(keys[0]) ? keys[0] : keys) as readonly [K, ...K[]]
+      Object.fromEntries(
+        Object.entries(this.shape).map(([k, v]) => [
+          k,
+          (!keysArr || utils.includes(keysArr, k)) &&
+          v.isType(TTypeName.Optional, TTypeName.Nullable)
+            ? deoptional(v)
+            : v,
+        ])
       )
     )
   }

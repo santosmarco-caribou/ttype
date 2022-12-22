@@ -100,15 +100,27 @@ import { t } from './src'
 
 // const bEntries = B.entries
 
-// const bb = t.object.fromEntries(bEntries)
+// // const bb = t.object.fromEntries(bEntries)
 
-console.log(
-  t
-    .object({
-      a: t.string(),
-      b: t.number(),
-    })
-    .parse({
-      a: 'a',
-    })
-)
+// console.log(
+//   t
+//     .object({
+//       a: t.string(),
+//       b: t.number(),
+//     })
+//     .parse({
+//       a: 'a',
+//     })
+// )
+
+const c = t
+  .object({
+    d: t.array(t.string()),
+    e: t.record(t.string()).nullable(),
+    f: t.map(t.string(), t.number()).promise(),
+    g: t.tuple([t.string(), t.number()], t.bigint()).optional(),
+    h: t.enum(['a', 1]).optional(),
+  })
+  .partial()
+
+console.log(c)

@@ -8,6 +8,7 @@ import isSameOrBefore from 'dayjs/plugin/isSameOrBefore'
 import { isPlainObject } from 'is-plain-object'
 import _mergeDeep from 'merge-deep'
 import _memoize from 'micro-memoize'
+import safeJsonStringify from 'safe-json-stringify'
 import type { N } from 'ts-toolbelt'
 import type { NonNegativeInteger } from 'type-fest'
 import type { AnyTType } from './types'
@@ -106,6 +107,16 @@ export namespace utils {
   export const replaceAll = <T extends string, From extends string, To extends string>(str: T, from: From, to: To) => str.split(from).join(to) as ReplaceAll<T, From, To>
   export const pluralize = (word: string, count: number) => `${word}${count < 0 ? '(s)' : count <= 1 ? '' : 's'}`
   export const intToLiteral = (int: number) => (int === 0 ? 'zero' : int === 1 ? 'one' : `${int}`)
+  export const jsonStringify = (value: object) =>
+    safeJsonStringify(
+      value,
+      (_, val) => {
+        if (typeof val === 'bigint') return `${val}n`
+        if (typeof val === 'symbol') return val.toString()
+        return val
+      },
+      2
+    )
 
   /* --------------------------------------------------------------- Arrays --------------------------------------------------------------- */
   export const includes = <T>(arr: readonly T[], item: unknown): item is T => [item, ...arr].slice(1).includes(item)
