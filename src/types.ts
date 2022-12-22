@@ -35,7 +35,7 @@ export interface TOptions extends CreateOptions {
 export interface TDef {
   readonly typeName: TTypeName
   readonly options: TOptions | undefined
-  readonly checks?: readonly { readonly kind: string }[]
+  readonly rules?: readonly { readonly check: string }[]
 }
 
 export abstract class TType<O, Def extends TDef, I = O> {
@@ -165,7 +165,9 @@ export abstract class TType<O, Def extends TDef, I = O> {
     return this.nullable().optional()
   }
 
-  required(): TRequired<this> {
+  required(this: AnyTObject): any
+  required(this: this): TRequired<this>
+  required() {
     return TRequired.create(this, this.options)
   }
 
@@ -238,22 +240,20 @@ export abstract class TType<O, Def extends TDef, I = O> {
     return utils.includes(types, this.typeName)
   }
 
-  protected _addCheck<K extends utils.Defined<Def['checks']>[number]['kind']>(
-    kind: K,
-    payload: Omit<Extract<utils.Defined<Def['checks']>[number], { readonly kind: K }>, 'kind'> & {
-      readonly message: string | undefined
-    }
+  protected _addRule<K extends utils.Defined<Def['rules']>[number]['check']>(
+    check: K,
+    payload: Omit<Extract<utils.Defined<Def['rules']>[number], { readonly check: K }>, 'check'>
   ): this {
     return this._construct({
-      checks: (this._def.checks ?? []).filter((c) => c.kind === kind).concat({ kind, ...payload }),
+      rules: (this._def.rules ?? []).filter((c) => c.check === check).concat({ check, ...payload }),
     })
   }
 
-  protected _removeChecks<K extends utils.Defined<Def['checks']>[number]['kind']>(
+  protected _removeRules<K extends utils.Defined<Def['rules']>[number]['check']>(
     checks: readonly [K, ...K[]]
   ): this {
     return this._construct({
-      checks: (this._def.checks ?? []).filter((c) => utils.includes(checks, c.kind)),
+      rules: (this._def.rules ?? []).filter((c) => utils.includes(checks, c.check)),
     })
   }
 
@@ -584,14 +584,14 @@ export type TDateInput<S extends TDateState> =
 
 export interface TDateDef extends TDef, TDateState {
   readonly typeName: TTypeName.Date
-  readonly checks: readonly TDateCheck[]
+  readonly rules: readonly TDateCheck[]
 }
 
 export class TDate<S extends TDateState = TDateState> extends TType<Date, TDateDef, TDateInput<S>> {
   readonly _hint = 'Date'
 
   _parse(ctx: ParseContextOf<this>): ParseResultOf<this> {
-    const { coerce, checks } = this._def
+    const { coerce, rules } = this._def
 
     if (coerce) {
       switch (coerce) {
@@ -618,15 +618,15 @@ export class TDate<S extends TDateState = TDateState> extends TType<Date, TDateD
 
     const data = utils.dayjs(ctx.data)
 
-    for (const check of checks) {
-      switch (check.kind) {
+    for (const rule of rules) {
+      switch (rule.check) {
         case 'min':
           if (
-            check.inclusive
-              ? data.isBefore(toDayjsInput(check.value))
-              : data.isSameOrBefore(toDayjsInput(check.value))
+            rule.inclusive
+              ? data.isBefore(toDayjsInput(rule.value))
+              : data.isSameOrBefore(toDayjsInput(rule.value))
           ) {
-            ctx.DIRTY(IssueKind.InvalidDate, check)
+            ctx.DIRTY(IssueKind.InvalidDate, rule)
             if (ctx.common.abortEarly) {
               return ctx.ABORT()
             }
@@ -634,11 +634,11 @@ export class TDate<S extends TDateState = TDateState> extends TType<Date, TDateD
           break
         case 'max':
           if (
-            check.inclusive
-              ? data.isAfter(toDayjsInput(check.value))
-              : data.isSameOrAfter(toDayjsInput(check.value))
+            rule.inclusive
+              ? data.isAfter(toDayjsInput(rule.value))
+              : data.isSameOrAfter(toDayjsInput(rule.value))
           ) {
-            ctx.DIRTY(IssueKind.InvalidDate, check)
+            ctx.DIRTY(IssueKind.InvalidDate, rule)
             if (ctx.common.abortEarly) {
               return ctx.ABORT()
             }
@@ -647,15 +647,15 @@ export class TDate<S extends TDateState = TDateState> extends TType<Date, TDateD
         case 'range':
           if (
             data.isBetween(
-              check.min,
-              check.max,
+              rule.min,
+              rule.max,
               undefined,
-              `${['min', 'both'].includes(check.inclusive) ? '[' : '('}${
-                ['max', 'both'].includes(check.inclusive) ? ']' : ')'
+              `${['min', 'both'].includes(rule.inclusive) ? '[' : '('}${
+                ['max', 'both'].includes(rule.inclusive) ? ']' : ')'
               }`
             )
           ) {
-            ctx.DIRTY(IssueKind.InvalidDate, check)
+            ctx.DIRTY(IssueKind.InvalidDate, rule)
             if (ctx.common.abortEarly) {
               return ctx.ABORT()
             }
@@ -686,7 +686,7 @@ export class TDate<S extends TDateState = TDateState> extends TType<Date, TDateD
    * Specifies the oldest date allowed where:
    *
    * @param value - The oldest date allowed.
-   * @param options - Options for this check.
+   * @param options - Options for this rule.
    * @param options.inclusive - Whether the date is inclusive or not.
    * Defaults to `true`.
    * @param options.message - The error message to use.
@@ -695,11 +695,11 @@ export class TDate<S extends TDateState = TDateState> extends TType<Date, TDateD
     value: TDateCheckInputRaw,
     options?: { readonly inclusive?: boolean; readonly message?: string }
   ): TDate<S> {
-    return this._addCheck('min', {
+    return this._addRule('min', {
       value: parseTDateCheckInput(value),
       inclusive: options?.inclusive ?? true,
       message: options?.message,
-    })._removeChecks(['range'])
+    })._removeRules(['range'])
   }
 
   /**
@@ -724,7 +724,7 @@ export class TDate<S extends TDateState = TDateState> extends TType<Date, TDateD
    * Specifies the latest date allowed where:
    *
    * @param value - The latest date allowed.
-   * @param options - Options for this check.
+   * @param options - Options for this rule.
    * @param options.inclusive - Whether the date is inclusive or not.
    * Defaults to `true`.
    * @param options.message - The error message to use.
@@ -733,11 +733,11 @@ export class TDate<S extends TDateState = TDateState> extends TType<Date, TDateD
     value: TDateCheckInputRaw,
     options?: { readonly inclusive?: boolean; readonly message?: string }
   ): TDate<S> {
-    return this._addCheck('max', {
+    return this._addRule('max', {
       value: parseTDateCheckInput(value),
       inclusive: options?.inclusive ?? true,
       message: options?.message,
-    })._removeChecks(['range'])
+    })._removeRules(['range'])
   }
 
   /**
@@ -763,7 +763,7 @@ export class TDate<S extends TDateState = TDateState> extends TType<Date, TDateD
    *
    * @param min - The oldest date allowed.
    * @param max - The latest date allowed.
-   * @param options - Options for this check.
+   * @param options - Options for this rule.
    * @param options.inclusive - Whether the dates in the range are inclusive or not.
    * Defaults to `'both'`.
    * * `'min'` - Only the `min` value is inclusive in the range.
@@ -780,12 +780,12 @@ export class TDate<S extends TDateState = TDateState> extends TType<Date, TDateD
       readonly message?: string
     }
   ): TDate<S> {
-    return this._addCheck('range', {
+    return this._addRule('range', {
       min: parseTDateCheckInput(min),
       max: parseTDateCheckInput(max),
       inclusive: options?.inclusive ?? 'both',
       message: options?.message,
-    })._removeChecks(['min', 'max'])
+    })._removeRules(['min', 'max'])
   }
 
   /**
@@ -803,7 +803,7 @@ export class TDate<S extends TDateState = TDateState> extends TType<Date, TDateD
   }
 
   static create = (options?: CreateOptions): TDate<{ coerce: false }> =>
-    new TDate({ typeName: TTypeName.Date, options, checks: [], coerce: false })
+    new TDate({ typeName: TTypeName.Date, options, rules: [], coerce: false })
 }
 
 /* ---------------------------------------------------------------------------------------------- */
@@ -1193,9 +1193,9 @@ export class TOptional<T extends AnyTType> extends TType<
 
 export type AnyTOptional = TOptional<AnyTType>
 
-/* -------------------------------------------------------------------------- */
-/*                                  Required                                  */
-/* -------------------------------------------------------------------------- */
+/* ---------------------------------------------------------------------------------------------- */
+/*                                            Required                                            */
+/* ---------------------------------------------------------------------------------------------- */
 
 export interface TRequiredDef<T extends AnyTType> extends TDef {
   readonly typeName: TTypeName.Required
@@ -1253,7 +1253,7 @@ export interface TLazyDef<T extends AnyTType> extends TDef {
 export type UnwrapTLazyDeep<T> = T extends TLazy<infer U> ? UnwrapTLazyDeep<U> : T
 
 export class TLazy<T extends AnyTType> extends TType<T['_O'], TLazyDef<T>, T['_I']> {
-  get _hint(): T['_hint'] {
+  get _hint() {
     return this.underlying._hint
   }
 
@@ -1295,16 +1295,17 @@ export class TPromise<T extends AnyTType> extends TType<
   TPromiseDef<T>,
   Promise<T['_I']>
 > {
-  readonly _hint: `Promise<${T['_hint']}>` = `Promise<${this.awaited._hint}>`
+  readonly _hint = `Promise<${this.awaited._hint}>`
 
   _parse(ctx: ParseContextOf<this>): ParseResultOf<this> {
     if (!(ctx.data instanceof Promise) && ctx.common.async === false) {
       return ctx.INVALID_TYPE({ expected: TParsedType.Promise }).ABORT()
     }
-
-    const promisified = ctx.data instanceof Promise ? ctx.data : Promise.resolve(ctx.data)
-
-    return ctx.OK(promisified.then((data) => this.awaited.parseAsync(data)))
+    return ctx.OK(
+      (ctx.data instanceof Promise ? ctx.data : Promise.resolve(ctx.data)).then((data) =>
+        this.awaited.parseAsync(data)
+      )
+    )
   }
 
   get awaited(): T {
@@ -1402,7 +1403,6 @@ export class TDefault<T extends AnyTType, D extends utils.Defined<T['_I']>> exte
     if (ctx.data === undefined) {
       ctx.setData(this.getDefault())
     }
-
     return this.underlying._parse(ctx.clone({ type: this.underlying })) as ParseResultOf<this>
   }
 
@@ -1533,7 +1533,7 @@ export type TArrayIO<
 
 export interface TArrayDef<T extends AnyTType> extends TDef {
   readonly typeName: TTypeName.Array
-  readonly checks: readonly TArrayCheck[]
+  readonly rules: readonly TArrayCheck[]
   readonly element: T
 }
 
@@ -1558,14 +1558,14 @@ export class TArray<T extends AnyTType, S extends TArrayState = TArrayInitialSta
       return ctx.INVALID_TYPE({ expected: TParsedType.Array }).ABORT()
     }
 
-    for (const check of this._def.checks) {
-      switch (check.kind) {
+    for (const rule of this._def.rules) {
+      switch (rule.check) {
         case 'min':
           if (
-            (check.inclusive && ctx.data.length < check.value) ||
-            (!check.inclusive && ctx.data.length <= check.value)
+            (rule.inclusive && ctx.data.length < rule.value) ||
+            (!rule.inclusive && ctx.data.length <= rule.value)
           ) {
-            ctx.DIRTY(IssueKind.InvalidArray, check)
+            ctx.DIRTY(IssueKind.InvalidArray, rule)
             if (ctx.common.abortEarly) {
               return ctx.ABORT()
             }
@@ -1573,18 +1573,18 @@ export class TArray<T extends AnyTType, S extends TArrayState = TArrayInitialSta
           break
         case 'max':
           if (
-            (check.inclusive && ctx.data.length > check.value) ||
-            (!check.inclusive && ctx.data.length >= check.value)
+            (rule.inclusive && ctx.data.length > rule.value) ||
+            (!rule.inclusive && ctx.data.length >= rule.value)
           ) {
-            ctx.DIRTY(IssueKind.InvalidArray, check)
+            ctx.DIRTY(IssueKind.InvalidArray, rule)
             if (ctx.common.abortEarly) {
               return ctx.ABORT()
             }
           }
           break
         case 'len':
-          if (ctx.data.length !== check.value) {
-            ctx.DIRTY(IssueKind.InvalidArray, check)
+          if (ctx.data.length !== rule.value) {
+            ctx.DIRTY(IssueKind.InvalidArray, rule)
             if (ctx.common.abortEarly) {
               return ctx.ABORT()
             }
@@ -1592,10 +1592,10 @@ export class TArray<T extends AnyTType, S extends TArrayState = TArrayInitialSta
           break
         case 'sort_ascending':
           const sortedAsc = [...ctx.data].sort()
-          if (check.convert) {
+          if (rule.convert) {
             ctx.setData(sortedAsc)
           } else if (ctx.data.some((item, idx) => sortedAsc[idx] !== item)) {
-            ctx.DIRTY(IssueKind.InvalidArray, check)
+            ctx.DIRTY(IssueKind.InvalidArray, rule)
             if (ctx.common.abortEarly) {
               return ctx.ABORT()
             }
@@ -1603,10 +1603,10 @@ export class TArray<T extends AnyTType, S extends TArrayState = TArrayInitialSta
           break
         case 'sort_descending':
           const sortedDesc = [...ctx.data].sort().reverse()
-          if (check.convert) {
+          if (rule.convert) {
             ctx.setData(sortedDesc)
           } else if (ctx.data.some((item, idx) => sortedDesc[idx] !== item)) {
-            ctx.DIRTY(IssueKind.InvalidArray, check)
+            ctx.DIRTY(IssueKind.InvalidArray, rule)
             if (ctx.common.abortEarly) {
               return ctx.ABORT()
             }
@@ -1664,11 +1664,11 @@ export class TArray<T extends AnyTType, S extends TArrayState = TArrayInitialSta
     options?: { readonly inclusive?: I; readonly message?: string },
     ..._errors: utils.$ValidateMinMax<S, 'min', V, I>
   ): TArray<T, ComputeNextTArrayState<S, 'min', V, I>> {
-    return this._addCheck('min', {
+    return this._addRule('min', {
       value,
       inclusive: options?.inclusive ?? true,
       message: options?.message,
-    })._removeChecks(['len']) as unknown as TArray<T, ComputeNextTArrayState<S, 'min', V, I>>
+    })._removeRules(['len']) as unknown as TArray<T, ComputeNextTArrayState<S, 'min', V, I>>
   }
 
   /**
@@ -1681,11 +1681,11 @@ export class TArray<T extends AnyTType, S extends TArrayState = TArrayInitialSta
     options?: { readonly inclusive?: I; readonly message?: string },
     ..._errors: utils.$ValidateMinMax<S, 'max', V, I>
   ): TArray<T, ComputeNextTArrayState<S, 'max', V, I>> {
-    return this._addCheck('max', {
+    return this._addRule('max', {
       value,
       inclusive: options?.inclusive ?? true,
       message: options?.message,
-    })._removeChecks(['len']) as unknown as TArray<T, ComputeNextTArrayState<S, 'max', V, I>>
+    })._removeRules(['len']) as unknown as TArray<T, ComputeNextTArrayState<S, 'max', V, I>>
   }
 
   /**
@@ -1698,42 +1698,42 @@ export class TArray<T extends AnyTType, S extends TArrayState = TArrayInitialSta
     options?: { readonly message?: string },
     ..._errors: utils.$ValidateNonNegativeInteger<V>
   ) {
-    return this._addCheck('len', {
+    return this._addRule('len', {
       value,
       message: options?.message,
-    })._removeChecks(['min', 'max']) as unknown as TArray<T, { min: V; max: V }>
+    })._removeRules(['min', 'max']) as unknown as TArray<T, { min: V; max: V }>
   }
 
   /**
    * Requires the array to comply with the `ascending` sort order.
    *
-   * @param options - Options for this check.
+   * @param options - Options for this rule.
    * @param options.convert - When `true`, the array is modified to match the sort order.
    * Defaults to `false`.
    * @param options.message - The error message to use.
    */
   ascending(options?: { readonly convert?: boolean; readonly message?: string }): this {
-    return this._addCheck('sort_ascending', {
+    return this._addRule('sort_ascending', {
       direction: 'ascending',
       convert: options?.convert ?? false,
       message: options?.message,
-    })._removeChecks(['sort_descending'])
+    })._removeRules(['sort_descending'])
   }
 
   /**
    * Requires the array to comply with the `descending` sort order.
    *
-   * @param options - Options for this check.
+   * @param options - Options for this rule.
    * @param options.convert - When `true`, the array is modified to match the sort order.
    * Defaults to `false`.
    * @param options.message - The error message to use.
    */
   descending(options?: { readonly convert?: boolean; readonly message?: string }): this {
-    return this._addCheck('sort_descending', {
+    return this._addRule('sort_descending', {
       direction: 'descending',
       convert: options?.convert ?? false,
       message: options?.message,
-    })._removeChecks(['sort_ascending'])
+    })._removeRules(['sort_ascending'])
   }
 
   /**
@@ -1744,7 +1744,7 @@ export class TArray<T extends AnyTType, S extends TArrayState = TArrayInitialSta
   }
 
   static create = <T extends AnyTType>(element: T, options?: CreateOptions): TArray<T> =>
-    new TArray({ typeName: TTypeName.Array, options, checks: [], element })
+    new TArray({ typeName: TTypeName.Array, options, rules: [], element })
 }
 
 export type AnyTArray = TArray<AnyTType>
@@ -1766,7 +1766,7 @@ export type ComputeNextTSetState<
 
 export interface TSetDef<T extends AnyTType> extends TDef {
   readonly typeName: TTypeName.Set
-  readonly checks: readonly TSetCheck[]
+  readonly rules: readonly TSetCheck[]
   readonly element: T
 }
 
@@ -1782,14 +1782,14 @@ export class TSet<T extends AnyTType, S extends TSetState = TSetInitialState> ex
       return ctx.INVALID_TYPE({ expected: TParsedType.Set }).ABORT()
     }
 
-    for (const check of this._def.checks) {
-      switch (check.kind) {
+    for (const rule of this._def.rules) {
+      switch (rule.check) {
         case 'min':
           if (
-            (check.inclusive && ctx.data.size < check.value) ||
-            (!check.inclusive && ctx.data.size <= check.value)
+            (rule.inclusive && ctx.data.size < rule.value) ||
+            (!rule.inclusive && ctx.data.size <= rule.value)
           ) {
-            ctx.DIRTY(IssueKind.InvalidSet, check)
+            ctx.DIRTY(IssueKind.InvalidSet, rule)
             if (ctx.common.abortEarly) {
               return ctx.ABORT()
             }
@@ -1797,18 +1797,18 @@ export class TSet<T extends AnyTType, S extends TSetState = TSetInitialState> ex
           break
         case 'max':
           if (
-            (check.inclusive && ctx.data.size > check.value) ||
-            (!check.inclusive && ctx.data.size >= check.value)
+            (rule.inclusive && ctx.data.size > rule.value) ||
+            (!rule.inclusive && ctx.data.size >= rule.value)
           ) {
-            ctx.DIRTY(IssueKind.InvalidSet, check)
+            ctx.DIRTY(IssueKind.InvalidSet, rule)
             if (ctx.common.abortEarly) {
               return ctx.ABORT()
             }
           }
           break
         case 'size':
-          if (ctx.data.size !== check.value) {
-            ctx.DIRTY(IssueKind.InvalidSet, check)
+          if (ctx.data.size !== rule.value) {
+            ctx.DIRTY(IssueKind.InvalidSet, rule)
             if (ctx.common.abortEarly) {
               return ctx.ABORT()
             }
@@ -1862,11 +1862,11 @@ export class TSet<T extends AnyTType, S extends TSetState = TSetInitialState> ex
     options?: { readonly inclusive?: I; readonly message?: string },
     ..._errors: utils.$ValidateMinMax<S, 'min', V, I>
   ): TSet<T, ComputeNextTSetState<S, 'min', V, I>> {
-    return this._addCheck('min', {
+    return this._addRule('min', {
       value,
       inclusive: options?.inclusive ?? true,
       message: options?.message,
-    })._removeChecks(['size']) as unknown as TSet<T, ComputeNextTSetState<S, 'min', V, I>>
+    })._removeRules(['size']) as unknown as TSet<T, ComputeNextTSetState<S, 'min', V, I>>
   }
 
   /**
@@ -1879,11 +1879,11 @@ export class TSet<T extends AnyTType, S extends TSetState = TSetInitialState> ex
     options?: { readonly inclusive?: I; readonly message?: string },
     ..._errors: utils.$ValidateMinMax<S, 'max', V, I>
   ): TSet<T, ComputeNextTSetState<S, 'max', V, I>> {
-    return this._addCheck('max', {
+    return this._addRule('max', {
       value,
       inclusive: options?.inclusive ?? true,
       message: options?.message,
-    })._removeChecks(['size']) as unknown as TSet<T, ComputeNextTSetState<S, 'max', V, I>>
+    })._removeRules(['size']) as unknown as TSet<T, ComputeNextTSetState<S, 'max', V, I>>
   }
 
   /**
@@ -1896,14 +1896,14 @@ export class TSet<T extends AnyTType, S extends TSetState = TSetInitialState> ex
     options?: { readonly message?: string },
     ..._errors: utils.$ValidateNonNegativeInteger<V>
   ) {
-    return this._addCheck('size', {
+    return this._addRule('size', {
       value,
       message: options?.message,
-    })._removeChecks(['min', 'max']) as unknown as TSet<T, { min: V; max: V }>
+    })._removeRules(['min', 'max']) as unknown as TSet<T, { min: V; max: V }>
   }
 
   static create = <T extends AnyTType>(element: T, options?: CreateOptions) =>
-    new TSet({ typeName: TTypeName.Set, options, element, checks: [] })
+    new TSet({ typeName: TTypeName.Set, options, element, rules: [] })
 }
 
 export type AnyTSet = TSet<AnyTType>
@@ -1946,7 +1946,7 @@ export type TTupleIO<T extends TTupleItems, R extends TTupleRest | null, IO exte
 
 export interface TTupleDef<T extends TTupleItems, R extends TTupleRest | null> extends TDef {
   readonly typeName: TTypeName.Tuple
-  readonly checks: readonly TTupleCheck[]
+  readonly rules: readonly TTupleCheck[]
   readonly items: T
   readonly rest: R
 }
@@ -1974,9 +1974,10 @@ export class TTuple<T extends TTupleItems, R extends TTupleRest | null> extends 
     if (data.length < items.length) {
       return ctx
         .DIRTY(IssueKind.InvalidTuple, {
-          kind: 'min',
+          check: 'min',
           value: items.length,
           inclusive: true,
+          message: undefined,
         })
         .ABORT()
     }
@@ -1984,9 +1985,10 @@ export class TTuple<T extends TTupleItems, R extends TTupleRest | null> extends 
     if (!rest && data.length > items.length) {
       return ctx
         .DIRTY(IssueKind.InvalidTuple, {
-          kind: 'max',
+          check: 'max',
           value: items.length,
           inclusive: true,
+          message: undefined,
         })
         .ABORT()
     }
@@ -2092,7 +2094,7 @@ export class TTuple<T extends TTupleItems, R extends TTupleRest | null> extends 
       options: restOrOptions instanceof TType ? options : restOrOptions,
       items,
       rest: restOrOptions instanceof TType ? restOrOptions : null,
-      checks: [],
+      rules: [],
     })
   }
 
@@ -2142,19 +2144,18 @@ export class TRecord<K extends AnyTType<PropertyKey>, V extends AnyTType> extend
     if (ctx.common.async) {
       return Promise.resolve().then(async () => {
         for (const [key, val] of data) {
-          const stringifiedKey = String(key)
           const keyResult = await keys._parseAsync(
             ctx.child({
               type: keys,
-              data: Number.isNaN(+stringifiedKey) ? key : +stringifiedKey,
-              path: [typeof key === 'symbol' ? stringifiedKey : key],
+              data: key,
+              path: [typeof key === 'symbol' ? String(key) : key],
             })
           )
           const valResult = await values._parseAsync(
             ctx.child({
               type: values,
               data: val,
-              path: [typeof key === 'symbol' ? stringifiedKey : key],
+              path: [typeof key === 'symbol' ? String(key) : key],
             })
           )
           if (keyResult.ok && valResult.ok) {
@@ -2167,19 +2168,18 @@ export class TRecord<K extends AnyTType<PropertyKey>, V extends AnyTType> extend
       })
     } else {
       for (const [key, val] of data) {
-        const stringifiedKey = String(key)
         const keyResult = keys._parseSync(
           ctx.child({
             type: keys,
-            data: Number.isNaN(+stringifiedKey) ? key : +stringifiedKey,
-            path: [typeof key === 'symbol' ? stringifiedKey : key],
+            data: key,
+            path: [typeof key === 'symbol' ? String(key) : key],
           })
         )
         const valResult = values._parseSync(
           ctx.child({
             type: values,
             data: val,
-            path: [typeof key === 'symbol' ? stringifiedKey : key],
+            path: [typeof key === 'symbol' ? String(key) : key],
           })
         )
         if (keyResult.ok && valResult.ok) {
@@ -2200,11 +2200,11 @@ export class TRecord<K extends AnyTType<PropertyKey>, V extends AnyTType> extend
     return this._def.values
   }
 
-  get entries(): readonly [K, V] {
+  get entries(): readonly [keys: K, values: V] {
     return [this.keys, this.values]
   }
 
-  partial() {
+  partial(): TRecord<K, TOptional<V>> {
     return new TRecord({ ...this._def, values: this.values.optional() })
   }
 
@@ -2302,7 +2302,7 @@ export class TMap<K extends AnyTType, V extends AnyTType> extends TType<
     return this._def.values
   }
 
-  get entries(): readonly [key: K, value: V] {
+  get entries(): readonly [keys: K, values: V] {
     return [this.keys, this.values]
   }
 
@@ -2426,16 +2426,23 @@ export class TObject<
   U extends TObjectUnknownKeys | null,
   C extends TObjectCatchall | null
 > extends TType<TObjectIO<S, U, C, '_O'>, TObjectDef<S, U, C>, TObjectIO<S, U, C, '_I'>> {
-  readonly _hint = `{ ${Object.entries(this.shape)
-    .map(([k, v]) => `${k}${v.isOptional() ? '?' : ''}: ${v._hint}`)
-    .join(', ')} }${
-    this._def.catchall || utils.includes(['passthrough', 'strict'], this._def.unknownKeys)
-      ? ` & { [x: string]: ${
-          this._def.catchall?._hint ??
-          (this._def.unknownKeys === 'passthrough' ? 'unknown' : 'never')
-        } }`
-      : ''
-  }`
+  get _hint() {
+    const needsParens =
+      this._def.catchall || utils.includes(['passthrough', 'strict'], this._def.unknownKeys)
+
+    const hint = `{ ${Object.entries(this.shape)
+      .map(([k, v]) => `${k}${v.isOptional() ? '?' : ''}: ${v._hint}`)
+      .join(', ')} }${
+      this._def.catchall || utils.includes(['passthrough', 'strict'], this._def.unknownKeys)
+        ? ` & { [x: string]: ${
+            this._def.catchall?._hint ??
+            (this._def.unknownKeys === 'passthrough' ? 'unknown' : 'never')
+          } }`
+        : ''
+    }`
+
+    return needsParens ? `(${hint})` : hint
+  }
 
   _parse(ctx: ParseContextOf<this>): ParseResultOf<this> {
     if (!utils.isObject(ctx.data)) {
@@ -2589,10 +2596,9 @@ export class TObject<
   }
 
   mergeDeep<T extends AnyTObject>(incoming: T) {
-    return incoming._setShape(utils.mergeDeep(this.shape, incoming.shape)) as MergeTObjectsDeep<
-      this,
-      T
-    >
+    return incoming._setShape(
+      utils.mergeDeep(this.shape, incoming.shape)
+    ) as unknown as MergeTObjectsDeep<this, T>
   }
 
   pick<K extends keyof S, T extends readonly [K, ...K[]]>(
@@ -2615,13 +2621,13 @@ export class TObject<
     return this._setShape(utils.omit(this.shape, Array.isArray(keys[0]) ? keys[0] : keys))
   }
 
-  setPartial<K extends keyof S = keyof S, T extends readonly [K, ...K[]] = readonly [K, ...K[]]>(
+  partial<K extends keyof S = keyof S, T extends readonly [K, ...K[]] = readonly [K, ...K[]]>(
     ...keys: T
-  ): TObject<utils.Merge<S, SetPartialObj<S, T[number]>>, U, C>
-  setPartial<K extends keyof S = keyof S, T extends readonly [K, ...K[]] = readonly [K, ...K[]]>(
+  ): TObject<utils.Merge<S, ToTPartialObj<S, T[number]>>, U, C>
+  partial<K extends keyof S = keyof S, T extends readonly [K, ...K[]] = readonly [K, ...K[]]>(
     keys?: T
-  ): TObject<utils.Merge<S, SetPartialObj<S, T[number]>>, U, C>
-  setPartial(...keys: readonly (keyof S)[]): any {
+  ): TObject<utils.Merge<S, ToTPartialObj<S, T[number]>>, U, C>
+  partial(...keys: readonly (keyof S)[]): any {
     const keysArr = Array.isArray(keys[0]) ? keys[0] : keys
     return this._setShape(
       utils.fromEntries(
@@ -2641,13 +2647,16 @@ export class TObject<
     return makePartialDeep(this)
   }
 
-  setRequired<K extends keyof S = keyof S, T extends readonly [K, ...K[]] = readonly [K, ...K[]]>(
+  required<K extends keyof S = keyof S, T extends readonly [K, ...K[]] = readonly [K, ...K[]]>(
+    this: this,
     ...keys: T
-  ): TObject<utils.Merge<S, SetRequiredObj<S, T[number]>>, U, C>
-  setRequired<K extends keyof S = keyof S, T extends readonly [K, ...K[]] = readonly [K, ...K[]]>(
+  ): TObject<utils.Merge<S, ToTRequiredObj<S, T[number]>>, U, C>
+  required<K extends keyof S = keyof S, T extends readonly [K, ...K[]] = readonly [K, ...K[]]>(
+    this: this,
     keys?: T
-  ): TObject<utils.Merge<S, SetRequiredObj<S, T[number]>>, U, C>
-  setRequired(...keys: readonly (keyof S)[]): any {
+  ): TObject<utils.Merge<S, ToTRequiredObj<S, T[number]>>, U, C>
+  required(this: never): never
+  required(...keys: readonly (keyof S)[]) {
     const keysArr = Array.isArray(keys[0]) ? keys[0] : keys
     return this._setShape(
       Object.fromEntries(
@@ -2824,8 +2833,12 @@ export class TFunction<A extends AnyTTuple, R extends AnyTType> extends TType<
     return this.implement(fn)
   }
 
-  decorate() {
-    return TDecorator.create(this)
+  decorate(): (
+    target: unknown,
+    _propertyKey: string | symbol,
+    descriptor: TypedPropertyDescriptor<this['_O']>
+  ) => TypedPropertyDescriptor<this['_O']> {
+    return TDecorator.create<A, R, this>(this)
   }
 
   private static _create<A extends TTupleItems>(
@@ -2867,7 +2880,7 @@ export class TFunction<A extends AnyTTuple, R extends AnyTType> extends TType<
           ? TTuple.create(tupleItemsTupleOrOptions)
           : TTuple.create([], TUnknown.create()),
       returns: returnsOrOptions instanceof TType ? returnsOrOptions : TUnknown.create(),
-      checks: [],
+      rules: [],
     })
   }
 
@@ -2882,6 +2895,11 @@ export type AnyTFunction = TFunction<AnyTTuple, AnyTType>
 
 export type TUnionMembers = readonly [AnyTType, AnyTType, ...AnyTType[]]
 
+export const flattenUnionMembers = <T extends TUnionMembers>(members: T): T =>
+  members.flatMap((m) =>
+    m instanceof TUnion ? flattenUnionMembers(m.members) : [m]
+  ) as unknown as T
+
 export interface TUnionDef<T extends TUnionMembers> extends TDef {
   readonly typeName: TTypeName.Union
   readonly members: T
@@ -2895,23 +2913,30 @@ export class TUnion<T extends TUnionMembers> extends TType<
   readonly _hint = this.members.map((m) => m._hint).join(' | ')
 
   _parse(ctx: ParseContextOf<this>): ParseResultOf<this> {
+    const flattenedMembers = flattenUnionMembers(this.members)
+
     const handleResults = (results: readonly SyncParseResultOf<this>[]): ParseResultOf<this> => {
       const successfulResults = results.filter((result) => !!result.ok)
       return successfulResults.length > 0
         ? ctx.OK(successfulResults[0].data)
         : ctx
             .INVALID_UNION({
-              errors: results.map((result) => result.error).filter(utils.isDefined),
+              issues: results
+                .map((result) => result.error)
+                .filter(utils.isDefined)
+                .flatMap((error) => error.issues),
             })
             .ABORT()
     }
 
     if (ctx.common.async) {
       return Promise.all(
-        this.members.map((member) => member._parseAsync(ctx.clone({ type: member })))
+        flattenedMembers.map((member) => member._parseAsync(ctx.clone({ type: member })))
       ).then(handleResults)
     } else {
-      const results = this.members.map((member) => member._parseSync(ctx.clone({ type: member })))
+      const results = flattenedMembers.map((member) =>
+        member._parseSync(ctx.clone({ type: member }))
+      )
       return handleResults(results)
     }
   }
@@ -3259,7 +3284,7 @@ export class TEffects<T extends AnyTType<any>, O = T['_O'], I = T['_I']> extends
               }
             }
             const issuePayload = getIssuePayload()
-            ctx.issue(IssueKind.Custom, issuePayload, issuePayload.message)
+            ctx.issue(IssueKind.Custom, issuePayload)
             return false
           }
           const result = check(data)
@@ -3583,7 +3608,7 @@ export type infer<T extends AnyTType> = output<T>
 
 /* ---------------------------------- Utils --------------------------------- */
 
-export type SetPartialObj<T, K extends keyof T = keyof T> = {
+export type ToTPartialObj<T, K extends keyof T = keyof T> = {
   [K_ in K]: T[K_] extends AnyTOptional ? T[K_] : T[K_] extends AnyTType ? TOptional<T[K_]> : never
 }
 
@@ -3603,6 +3628,6 @@ export type SetPartialArr<T extends readonly [AnyTType, ...AnyTType[]] | readonl
       ]
     : never
 
-export type SetRequiredObj<T, K extends keyof T = keyof T> = {
+export type ToTRequiredObj<T, K extends keyof T = keyof T> = {
   [K_ in K]: T[K_] extends AnyTRequired ? T[K_] : T[K_] extends AnyTType ? TRequired<T[K_]> : never
 }

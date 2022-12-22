@@ -4,5 +4,5 @@
     "experimentalDecorators": true,
     "noEmit": true
   },
-  "include": ["src", "__test__", "jest.config.js"]
+  "include": ["src", "__test__", "jest.config.js", "jest.setup.ts"]
 }

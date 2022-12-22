@@ -7,4 +7,5 @@ module.exports = {
   transform: {
     '\\.ts$': ['ts-jest', { diagnostics: false }],
   },
+  setupFiles: ['<rootDir>/jest.setup.ts'],
 }

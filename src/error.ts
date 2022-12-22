@@ -63,9 +63,7 @@ export class TError<O = unknown, I = O> extends Error {
     const fieldErrors = { _errors: [] } as unknown as FormattedError<I, U>
     const processError = (error: TError) => {
       for (const issue of error.issues) {
-        if (issue.kind === IssueKind.InvalidUnion) {
-          issue.payload.unionErrors.map(processError)
-        } else if (
+        if (
           issue.kind === IssueKind.InvalidArguments ||
           issue.kind === IssueKind.InvalidReturnType
         ) {
@@ -115,9 +113,9 @@ export class TError<O = unknown, I = O> extends Error {
   }
 }
 
-/* -------------------------------------------------------------------------- */
-/*                               IssueFormatter                               */
-/* -------------------------------------------------------------------------- */
+/* ---------------------------------------------------------------------------------------------- */
+/*                                         IssueFormatter                                         */
+/* ---------------------------------------------------------------------------------------------- */
 
 export type IssueFormatter = (issue: Issue) => string
 
@@ -139,9 +137,9 @@ export const DEFAULT_ISSUE_FORMATTER: IssueFormatter = (issue) => {
   })}\n\n`
 }
 
-/* -------------------------------------------------------------------------- */
-/*                                  ErrorMap                                  */
-/* -------------------------------------------------------------------------- */
+/* ---------------------------------------------------------------------------------------------- */
+/*                                            ErrorMap                                            */
+/* ---------------------------------------------------------------------------------------------- */
 
 export interface ErrorMapContext {
   readonly defaultMsg: string
@@ -179,12 +177,15 @@ export const DEFAULT_ERROR_MAP: ErrorMapFn = (issue, ctx) => {
     params: {
       typeName: 'Array' | 'Set' | 'Tuple'
       value: number
-    } & ({ kind: 'min' | 'max'; inclusive: boolean } | { kind: 'len' | 'size'; inclusive?: never })
+    } & (
+      | { check: 'min' | 'max'; inclusive: boolean }
+      | { check: 'len' | 'size'; inclusive?: never }
+    )
   ) =>
     `${params.typeName} must contain ${
       params.inclusive
-        ? { min: 'at least', max: 'at most' }[params.kind]
-        : { min: 'more than', max: 'less than', len: 'exactly', size: 'exactly' }[params.kind]
+        ? { min: 'at least', max: 'at most' }[params.check]
+        : { min: 'more than', max: 'less than', len: 'exactly', size: 'exactly' }[params.check]
     } ${utils.intToLiteral(params.value)} ${utils.pluralize('element', params.value)}`
 
   switch (issue.kind) {
@@ -193,7 +194,7 @@ export const DEFAULT_ERROR_MAP: ErrorMapFn = (issue, ctx) => {
     case IssueKind.InvalidType:
       return `Expected ${issue.payload.expected}, got ${issue.payload.received}`
     case IssueKind.InvalidArray:
-      switch (issue.payload.kind) {
+      switch (issue.payload.check) {
         case 'min':
         case 'max':
         case 'len':
@@ -201,17 +202,17 @@ export const DEFAULT_ERROR_MAP: ErrorMapFn = (issue, ctx) => {
         case 'sort_ascending':
         case 'sort_descending':
           return `Array must be sorted in ${utils.replaceAll(
-            issue.payload.kind,
+            issue.payload.check,
             'sort_',
             ''
           )} order`
       }
     case IssueKind.InvalidDate:
-      switch (issue.payload.kind) {
+      switch (issue.payload.check) {
         case 'min':
         case 'max':
           return `Date must be ${issue.payload.inclusive ? 'on or ' : ''}${
-            issue.payload.kind === 'min' ? 'after' : 'before'
+            issue.payload.check === 'min' ? 'after' : 'before'
           } ${issue.payload.value}`
         case 'range':
           return `Date must be between ${issue.payload.min} (${
@@ -225,7 +226,7 @@ export const DEFAULT_ERROR_MAP: ErrorMapFn = (issue, ctx) => {
     case IssueKind.InvalidTuple:
       return makeMinMaxElementsCheckMsg({ typeName: 'Tuple', ...issue.payload })
     case IssueKind.InvalidEnumValue:
-      return `Expected one of ${issue.payload.expected.formatted}, got ${issue.payload.received.formatted}`
+      return `Expected input to be one of ${issue.payload.expected.formatted}, got ${issue.payload.received.formatted}`
     case IssueKind.InvalidLiteral:
       return `Expected the literal value ${issue.payload.expected.formatted}, got ${issue.payload.received.formatted}`
     case IssueKind.InvalidArguments:
@@ -233,7 +234,7 @@ export const DEFAULT_ERROR_MAP: ErrorMapFn = (issue, ctx) => {
     case IssueKind.InvalidReturnType:
       return 'Invalid return type'
     case IssueKind.InvalidUnion:
-      return '<<TODO>>'
+      return `Expected input to match one of: ${issue.type.hint}`
     case IssueKind.InvalidIntersection:
       return 'Intersection results could not be merged'
     case IssueKind.InvalidInstance:

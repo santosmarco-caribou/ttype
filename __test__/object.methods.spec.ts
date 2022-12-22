@@ -483,8 +483,8 @@ describe('TObject :: methods', () => {
   })
 
   describe('partial', () => {
-    const aPartial = A.setPartial()
-    const bPartial = B.setPartial(['d', 'e', 'f'])
+    const aPartial = A.partial()
+    const bPartial = B.partial(['d', 'e', 'f'])
 
     test('shape', () => {
       expect(utils.jsonStringify(aPartial.shape)).toEqual(
@@ -528,22 +528,22 @@ describe('TObject :: methods', () => {
   })
 
   describe('required', () => {
-    const aRequired = A.setPartial().setRequired(['a'])
-    const bRequired = B.setPartial().setRequired(['d', 'e', 'f'])
+    const aRequired = A.partial().required(['a'])
+    const bRequired = B.partial().required(['d', 'e', 'f'])
 
     test('shape', () => {
       expect(utils.jsonStringify(aRequired.shape)).toEqual(
         utils.jsonStringify({
-          a: t.string(),
+          a: t.required(t.string().optional()),
           b: t.number().optional(),
           c: t.boolean().optional(),
         })
       )
       expect(utils.jsonStringify(bRequired.shape)).toEqual(
         utils.jsonStringify({
-          d: t.array(t.string()),
-          e: t.record(t.string()).nullable(),
-          f: t.map(t.string(), t.number()).promise(),
+          d: t.array(t.string()).optional().required(),
+          e: t.record(t.string()).nullable().optional().required(),
+          f: t.map(t.string(), t.number()).promise().optional().required(),
           g: t.tuple([t.string(), t.number()], t.bigint()).optional(),
           h: t.enum(['a', 1]).optional(),
         })

@@ -168,9 +168,7 @@ export class ParseContext<D = unknown, O = unknown, I = O> {
 
   DIRTY<K extends IssueKind>(
     kind: K,
-    ...args: Issue<K>['payload'] extends undefined
-      ? [message?: string]
-      : [payload: Issue<K>['payload'], message?: string]
+    ...args: Issue<K>['payload'] extends undefined ? [] : [payload: Issue<K>['payload']]
   ): this {
     if (this.isInvalid()) {
       if (this.common.abortEarly) {
@@ -180,8 +178,7 @@ export class ParseContext<D = unknown, O = unknown, I = O> {
       this.setInvalid()
     }
 
-    const [payload, message] =
-      typeof args[0] === 'string' ? [undefined, args[0]] : [args[0], args[1]]
+    const payload = args[0]
 
     const issueInput: IssueInput = {
       data: this.data,
@@ -208,11 +205,17 @@ export class ParseContext<D = unknown, O = unknown, I = O> {
     } as NoMsgIssue
 
     const issueMessage =
-      message ??
-      [this.common.errorMap, this.type.options.errorMap, TGlobal.getErrorMap(), DEFAULT_ERROR_MAP]
-        .filter(utils.isDefined)
-        .reverse()
-        .reduce((msg, map) => resolveErrorMap(map)(issue, { defaultMsg: msg }), '')
+      payload && 'message' in payload
+        ? payload.message
+        : [
+            this.common.errorMap,
+            this.type.options.errorMap,
+            TGlobal.getErrorMap(),
+            DEFAULT_ERROR_MAP,
+          ]
+            .filter(utils.isDefined)
+            .reverse()
+            .reduce((msg, map) => resolveErrorMap(map)(issue, { defaultMsg: msg }), '')
 
     this.setIssue({ ...issue, message: issueMessage } as Issue)
 
@@ -275,8 +278,8 @@ export class ParseContext<D = unknown, O = unknown, I = O> {
     return this.DIRTY(IssueKind.InvalidReturnType, payload)
   }
 
-  INVALID_UNION(payload: { errors: readonly TError[] }) {
-    return this.DIRTY(IssueKind.InvalidUnion, { unionErrors: payload.errors })
+  INVALID_UNION(payload: { issues: readonly Issue[] }) {
+    return this.DIRTY(IssueKind.InvalidUnion, { unionIssues: payload.issues })
   }
 
   INVALID_INTERSECTION() {

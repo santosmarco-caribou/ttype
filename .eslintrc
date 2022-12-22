@@ -24,7 +24,7 @@
   },
   "overrides": [
     {
-      "files": ["__test__/**/*", "jest.config.js"],
+      "files": ["__test__/**/*.ts", "jest.config.js", "jest.setup.ts"],
       "parserOptions": {
         "project": "./tsconfig.test.json"
       }

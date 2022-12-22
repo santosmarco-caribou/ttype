@@ -72,7 +72,7 @@ export type IssueMap = {
     readonly error: TError
   }>
   [IssueKind.InvalidUnion]: MakeIssue<{
-    readonly unionErrors: readonly TError[]
+    readonly unionIssues: readonly Issue[]
   }>
   [IssueKind.InvalidIntersection]: MakeIssue<null>
   [IssueKind.InvalidInstance]: MakeIssue<{
@@ -97,33 +97,31 @@ export type NoMsgIssue<K extends IssueKind = IssueKind> = K extends unknown
   : never
 
 export namespace checks {
-  type MinMax<T extends 'min' | 'max', V = number> = {
-    readonly kind: T
-    readonly value: V
-    readonly inclusive: boolean
-  }
+  type Construct<C extends string, T extends Record<string, unknown>> = {
+    readonly check: C
+    readonly message: string | undefined
+  } & T
+
+  type MinMax<T extends 'min' | 'max', V = number> = Construct<
+    T,
+    { readonly value: V; readonly inclusive: boolean }
+  >
   export type Min<V = number> = MinMax<'min', V>
   export type Max<V = number> = MinMax<'max', V>
 
-  export type Range<V = number> = {
-    readonly kind: 'range'
-    readonly min: V
-    readonly max: V
-    readonly inclusive: 'min' | 'max' | 'both' | 'none'
-  }
+  export type Range<V = number> = Construct<
+    'range',
+    { readonly min: V; readonly max: V; readonly inclusive: 'min' | 'max' | 'both' | 'none' }
+  >
 
-  type LenSize<T extends 'len' | 'size', V = number> = {
-    readonly kind: T
-    readonly value: V
-  }
+  type LenSize<T extends 'len' | 'size', V = number> = Construct<T, { readonly value: V }>
   export type Length<V = number> = LenSize<'len', V>
   export type Size<V = number> = LenSize<'size', V>
 
-  type Sort<T extends 'ascending' | 'descending'> = {
-    readonly kind: `sort_${T}`
-    readonly direction: T
-    readonly convert: boolean
-  }
+  type Sort<T extends 'ascending' | 'descending'> = Construct<
+    `sort_${T}`,
+    { readonly direction: T; readonly convert: boolean }
+  >
   export type SortAscending = Sort<'ascending'>
   export type SortDescending = Sort<'descending'>
 }
