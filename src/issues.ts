@@ -1,6 +1,6 @@
 import type { TError } from './error'
 import type { ParsePath, TParsedType } from './parse'
-import type { AnyTType, TArrayCheck, TDateCheck, TSetCheck, TTupleCheck } from './types'
+import type { TArrayCheck, TDateCheck, TSetCheck, TTupleCheck, TTypeName } from './types'
 import type { utils } from './utils'
 
 export enum IssueKind {
@@ -29,12 +29,23 @@ export interface IssueInput {
   readonly parsedType: TParsedType
 }
 
+export interface IssueTypeInfo {
+  readonly name: TTypeName
+  readonly hint: string
+}
+
+export interface IssueMetadata {
+  readonly id: string
+  readonly timestamp: number
+}
+
 type MakeIssue<P extends IssuePayload> = {
-  readonly type: AnyTType
-  readonly input: IssueInput
   readonly path: ParsePath
   readonly message: string
-} & (P extends null ? unknown : { readonly payload: P })
+  readonly input: IssueInput
+  readonly type: IssueTypeInfo
+  readonly _meta: IssueMetadata
+} & (P extends null ? { readonly payload?: never } : { readonly payload: P })
 
 export type IssueMap = {
   [IssueKind.Required]: MakeIssue<null>
@@ -47,24 +58,12 @@ export type IssueMap = {
   [IssueKind.InvalidSet]: MakeIssue<TSetCheck>
   [IssueKind.InvalidTuple]: MakeIssue<TTupleCheck>
   [IssueKind.InvalidEnumValue]: MakeIssue<{
-    readonly expected: {
-      readonly values: readonly (string | number)[]
-      readonly formatted: string
-    }
-    readonly received: {
-      readonly value: string | number
-      readonly formatted: string
-    }
+    readonly expected: { readonly values: readonly (string | number)[]; readonly formatted: string }
+    readonly received: { readonly value: string | number; readonly formatted: string }
   }>
   [IssueKind.InvalidLiteral]: MakeIssue<{
-    readonly expected: {
-      readonly value: utils.Primitive
-      readonly formatted: string
-    }
-    readonly received: {
-      readonly value: utils.Primitive
-      readonly formatted: string
-    }
+    readonly expected: { readonly value: utils.Primitive; readonly formatted: string }
+    readonly received: { readonly value: utils.Primitive; readonly formatted: string }
   }>
   [IssueKind.InvalidArguments]: MakeIssue<{
     readonly error: TError

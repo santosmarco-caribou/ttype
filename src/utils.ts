@@ -53,6 +53,7 @@ export namespace utils {
   export type CastToArray<T> = T extends readonly unknown[] ? T : never
   export type ConstructTuple<T, L extends number> = _internals.ConstructTuple<T, L>
   export type PartialTuple<T> = T extends readonly [] ? T : T extends readonly [infer H, ...infer R] ? [H?, ...PartialTuple<R>] : never
+  export type EnforcePartialTuple<T> = T extends readonly [] ? T : T extends readonly [infer H, ...infer R] ? [...(undefined extends H ? [H?] : [H]), ...EnforcePartialTuple<R>] : T
   export type UnionToTuple<T> = _internals.UnionToTuple<T>
   export type Tail<T> = T extends readonly [unknown, ...infer U] ? U : []
   declare const TYPE_ERROR: unique symbol

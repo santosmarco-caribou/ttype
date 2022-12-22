@@ -1,11 +1,37 @@
-import { IssueKind, type NoMsgIssue } from './issues'
+import { bold, cyan, dim, italic, magenta } from 'colorette'
+import { inspect } from 'util'
+import { TGlobal } from './global'
+import { IssueKind, type Issue, type NoMsgIssue } from './issues'
 import type { ParseContext } from './parse'
+import type { AnyTType } from './types'
 import { utils } from './utils'
+
+export type FormattedError<I, U = string> = {
+  readonly _errors: readonly U[]
+} & (NonNullable<I> extends readonly [unknown, ...unknown[]]
+  ? { readonly [K in keyof NonNullable<I>]?: FormattedError<NonNullable<I>[K]> }
+  : NonNullable<I> extends readonly unknown[]
+  ? { readonly [x: number]: FormattedError<NonNullable<I>[number]> }
+  : NonNullable<I> extends object
+  ? { readonly [K in keyof NonNullable<I>]?: FormattedError<NonNullable<I>[K]> }
+  : unknown)
+
+export interface FlattenedError<I, U = string> {
+  readonly formErrors: readonly U[]
+  readonly fieldErrors: {
+    readonly [K in I extends unknown ? keyof I : never]?: readonly U[]
+  }
+}
+
+export type inferFormattedError<T extends AnyTType, U = string> = utils.Simplify<
+  FormattedError<T['_I'], U>
+>
+export type inferFlattenedError<T extends AnyTType, U = string> = utils.Simplify<
+  FlattenedError<T['_I'], U>
+>
 
 export class TError<O = unknown, I = O> extends Error {
   readonly name = 'TError'
-
-  readonly issues = this._parseCtx.allIssues
 
   constructor(private readonly _parseCtx: ParseContext<unknown, O, I>) {
     super()
@@ -17,19 +43,108 @@ export class TError<O = unknown, I = O> extends Error {
       // prettier-ignore
       (this as any).__proto__ = actualProto
     }
+  }
 
-    // Object.getOwnPropertyNames(this).forEach((prop) =>
-    //   Object.defineProperty(this, prop, { enumerable: false })
-    // )
+  get issues() {
+    return this._parseCtx.issues
   }
 
   get message() {
-    return utils.jsonStringify(this.issues)
+    return '\n\n' + this.issues.map(TGlobal.getIssueFormatter()).join('')
+  }
+
+  toString() {
+    return this.message
+  }
+
+  format(): FormattedError<I>
+  format<U>(mapper: (issue: Issue) => U): FormattedError<I, U>
+  format<U>(mapper: (issue: Issue) => U = (issue) => issue.message as U) {
+    const fieldErrors = { _errors: [] } as unknown as FormattedError<I, U>
+    const processError = (error: TError) => {
+      for (const issue of error.issues) {
+        if (issue.kind === IssueKind.InvalidUnion) {
+          issue.payload.unionErrors.map(processError)
+        } else if (
+          issue.kind === IssueKind.InvalidArguments ||
+          issue.kind === IssueKind.InvalidReturnType
+        ) {
+          processError(issue.payload.error)
+        } else if (issue.path.length === 0) {
+          // prettier-ignore
+          (fieldErrors._errors as U[]).push(mapper(issue))
+        } else {
+          let curr = fieldErrors as any
+          let i = 0
+
+          while (i < issue.path.length) {
+            const el = issue.path[i]
+            const terminal = i === issue.path.length - 1
+
+            if (!terminal) {
+              curr[el] = curr[el] || { _errors: [] }
+            } else {
+              curr[el] = curr[el] || { _errors: [] }
+              curr[el]._errors.push(mapper(issue))
+            }
+
+            curr = curr[el]
+            i++
+          }
+        }
+      }
+    }
+    processError(this)
+    return fieldErrors
+  }
+
+  flatten(): FlattenedError<I>
+  flatten<U>(mapper: (issue: Issue) => U): FlattenedError<I, U>
+  flatten<U>(mapper: (issue: Issue) => U = (issue) => issue.message as U) {
+    const fieldErrors = {} as Record<string | number, U[]>
+    const formErrors: U[] = []
+    for (const sub of this.issues) {
+      if (sub.path.length > 0) {
+        fieldErrors[sub.path[0]] = fieldErrors[sub.path[0]] || []
+        fieldErrors[sub.path[0]].push(mapper(sub))
+      } else {
+        formErrors.push(mapper(sub))
+      }
+    }
+    return { formErrors, fieldErrors }
   }
 }
 
+/* -------------------------------------------------------------------------- */
+/*                               IssueFormatter                               */
+/* -------------------------------------------------------------------------- */
+
+export type IssueFormatter = (issue: Issue) => string
+
+export const DEFAULT_ISSUE_FORMATTER: IssueFormatter = (issue) => {
+  const c = (fn: (text: string) => string, text: string) =>
+    TGlobal.getOptions().colorsEnabled ? fn(text) : text
+
+  const header = [
+    c(magenta, `[${issue.kind}]`),
+    c(cyan, c(bold, issue.type.name)),
+    '•',
+    c(bold, issue.message),
+    c(dim, issue.path.length > 0 ? `${c(italic, 'at path:')} "${issue.path.join('.')}"` : ''),
+  ]
+
+  return `${header.join(' ')}\n${inspect(utils.pick(issue, ['payload', 'input', 'type', '_meta']), {
+    depth: Infinity,
+    colors: TGlobal.getOptions().colorsEnabled,
+  })}\n\n`
+}
+
+/* -------------------------------------------------------------------------- */
+/*                                  ErrorMap                                  */
+/* -------------------------------------------------------------------------- */
+
 export interface ErrorMapContext {
-  readonly defaultMessage: string
+  readonly defaultMsg: string
 }
 
 export type ErrorMapFn<K extends IssueKind = IssueKind> = (
@@ -59,7 +174,7 @@ export const resolveErrorMap = (map: ErrorMap): ErrorMapFn => {
   }
 }
 
-export const DEFAULT_ERROR_MAP: ErrorMapFn = (issue) => {
+export const DEFAULT_ERROR_MAP: ErrorMapFn = (issue, ctx) => {
   const makeMinMaxElementsCheckMsg = (
     params: {
       typeName: 'Array' | 'Set' | 'Tuple'
@@ -69,12 +184,7 @@ export const DEFAULT_ERROR_MAP: ErrorMapFn = (issue) => {
     `${params.typeName} must contain ${
       params.inclusive
         ? { min: 'at least', max: 'at most' }[params.kind]
-        : {
-            min: 'more than',
-            max: 'less than',
-            len: 'exactly',
-            size: 'exactly',
-          }[params.kind]
+        : { min: 'more than', max: 'less than', len: 'exactly', size: 'exactly' }[params.kind]
     } ${utils.intToLiteral(params.value)} ${utils.pluralize('element', params.value)}`
 
   switch (issue.kind) {
@@ -87,10 +197,7 @@ export const DEFAULT_ERROR_MAP: ErrorMapFn = (issue) => {
         case 'min':
         case 'max':
         case 'len':
-          return makeMinMaxElementsCheckMsg({
-            typeName: 'Array',
-            ...issue.payload,
-          })
+          return makeMinMaxElementsCheckMsg({ typeName: 'Array', ...issue.payload })
         case 'sort_ascending':
         case 'sort_descending':
           return `Array must be sorted in ${utils.replaceAll(
@@ -121,6 +228,10 @@ export const DEFAULT_ERROR_MAP: ErrorMapFn = (issue) => {
       return `Expected one of ${issue.payload.expected.formatted}, got ${issue.payload.received.formatted}`
     case IssueKind.InvalidLiteral:
       return `Expected the literal value ${issue.payload.expected.formatted}, got ${issue.payload.received.formatted}`
+    case IssueKind.InvalidArguments:
+      return 'Invalid function argument(s)'
+    case IssueKind.InvalidReturnType:
+      return 'Invalid return type'
     case IssueKind.InvalidUnion:
       return '<<TODO>>'
     case IssueKind.InvalidIntersection:
@@ -138,6 +249,6 @@ export const DEFAULT_ERROR_MAP: ErrorMapFn = (issue) => {
       return issue.payload.message ?? 'Custom validation failed'
 
     default:
-      return 'Invalid input'
+      return ctx.defaultMsg || 'Invalid input'
   }
 }

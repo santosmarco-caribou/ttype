@@ -483,8 +483,8 @@ describe('TObject :: methods', () => {
   })
 
   describe('partial', () => {
-    const aPartial = A.partial()
-    const bPartial = B.partial(['d', 'e', 'f'])
+    const aPartial = A.setPartial()
+    const bPartial = B.setPartial(['d', 'e', 'f'])
 
     test('shape', () => {
       expect(utils.jsonStringify(aPartial.shape)).toEqual(
@@ -528,8 +528,8 @@ describe('TObject :: methods', () => {
   })
 
   describe('required', () => {
-    const aRequired = A.partial().required(['a'])
-    const bRequired = B.partial().required(['d', 'e', 'f'])
+    const aRequired = A.setPartial().setRequired(['a'])
+    const bRequired = B.setPartial().setRequired(['d', 'e', 'f'])
 
     test('shape', () => {
       expect(utils.jsonStringify(aRequired.shape)).toEqual(
@@ -539,7 +539,6 @@ describe('TObject :: methods', () => {
           c: t.boolean().optional(),
         })
       )
-      console.log(bRequired.shape)
       expect(utils.jsonStringify(bRequired.shape)).toEqual(
         utils.jsonStringify({
           d: t.array(t.string()),
