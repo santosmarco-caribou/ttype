@@ -32,12 +32,19 @@ export interface TOptions extends CreateOptions {
   readonly debug?: boolean
 }
 
-export interface TMeta<O = unknown> {
+export interface TPublicMeta<O = unknown> {
   readonly title?: string
   readonly summary?: string
   readonly description?: string
   readonly version?: string
   readonly examples?: readonly O[]
+  readonly tags?: readonly string[]
+  readonly unit?: string
+  readonly deprecated?: boolean
+  readonly [x: string]: unknown
+}
+
+export interface TMeta<O = unknown> extends TPublicMeta<O> {
   readonly required?: boolean
   readonly nullable?: boolean
   readonly readonly?: boolean
@@ -50,11 +57,11 @@ export interface TDef<O = any> {
   readonly rules?: readonly { readonly check: string }[]
 }
 
-export abstract class TType<O, Def extends TDef, I = O> {
+export abstract class TType<O, Def extends TDef<O>, I = O> {
   readonly _O!: O
   readonly _I!: I
 
-  protected readonly _def: utils.Merge<Def, { readonly options: TOptions; readonly meta: TMeta<O> }>
+  readonly _def: Def & { readonly options: TOptions; readonly meta: TMeta<O> }
 
   abstract _parse(ctx: ParseContext<O, I>): ParseResultOf<this>
 
@@ -86,6 +93,10 @@ export abstract class TType<O, Def extends TDef, I = O> {
 
   get meta(): TMeta<O> {
     return this._def.meta
+  }
+
+  setMeta(meta: TPublicMeta<O>): this {
+    return this._construct({ meta })
   }
 
   protected constructor(def: Def) {
@@ -122,6 +133,7 @@ export abstract class TType<O, Def extends TDef, I = O> {
     this.pipe = this.pipe.bind(this)
     this.isOptional = this.isOptional.bind(this)
     this.isNullable = this.isNullable.bind(this)
+    this.isNullish = this.isNullish.bind(this)
     this.isType = this.isType.bind(this)
 
     Object.getOwnPropertyNames(this)
@@ -241,11 +253,15 @@ export abstract class TType<O, Def extends TDef, I = O> {
   }
 
   isOptional(): boolean {
-    return this.safeParse(undefined).ok
+    return !this.meta.required
   }
 
   isNullable(): boolean {
-    return this.safeParse(null).ok
+    return !!this.meta.nullable
+  }
+
+  isNullish(): boolean {
+    return this.isNullable() && this.isOptional()
   }
 
   isType<T extends TTypeName>(...types: readonly [T, ...T[]]): this is TTypeNameMap[T] {
@@ -262,9 +278,7 @@ export abstract class TType<O, Def extends TDef, I = O> {
   }
 
   protected _removeRules<K extends utils.Defined<Def['rules']>[number]['check']>(checks: readonly [K, ...K[]]): this {
-    return this._construct({
-      rules: (this._def.rules ?? []).filter((c) => utils.includes(checks, c.check)),
-    })
+    return this._construct({ rules: (this._def.rules ?? []).filter((c) => utils.includes(checks, c.check)) })
   }
 
   protected _construct(def: Partial<TDef>): this {
@@ -762,10 +776,7 @@ export class TBoolean<S extends TBooleanState = TBooleanState> extends TType<boo
   }> {
     return new TBoolean({
       ...this._def,
-      coerce: {
-        ...(typeof this._def.coerce === 'boolean' ? {} : this._def.coerce),
-        true: values,
-      },
+      coerce: { ...(typeof this._def.coerce === 'boolean' ? {} : this._def.coerce), true: values },
     })
   }
 
@@ -1150,7 +1161,7 @@ export class TVoid extends TType<void, TVoidDef> {
 /*                                              Never                                             */
 /* ---------------------------------------------------------------------------------------------- */
 
-export interface TNeverDef extends TDef {
+export interface TNeverDef extends TDef<never> {
   readonly typeName: TTypeName.Never
 }
 
@@ -1193,7 +1204,12 @@ export class TLiteral<V extends utils.Primitive> extends TType<V, TLiteralDef<V>
   }
 
   static create = <V extends utils.Primitive>(value: V, options?: CreateOptions): TLiteral<V> =>
-    new TLiteral({ typeName: TTypeName.Literal, options, value })
+    new TLiteral({
+      typeName: TTypeName.Literal,
+      options,
+      value,
+      meta: { required: value !== undefined, nullable: value === null },
+    })
 }
 
 export type AnyTLiteral = TLiteral<utils.Primitive>
