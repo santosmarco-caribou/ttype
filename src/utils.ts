@@ -108,16 +108,7 @@ export namespace utils {
   export const replaceAll = <T extends string, From extends string, To extends string>(str: T, from: From, to: To) => str.split(from).join(to) as ReplaceAll<T, From, To>
   export const pluralize = (word: string, count: number) => `${word}${count < 0 ? '(s)' : count <= 1 ? '' : 's'}`
   export const intToLiteral = (int: number) => (int === 0 ? 'zero' : int === 1 ? 'one' : `${int}`)
-  export const jsonStringify = (value: object) =>
-    safeJsonStringify(
-      value,
-      (_, val) => {
-        if (typeof val === 'bigint') return `${val}n`
-        if (typeof val === 'symbol') return val.toString()
-        return val
-      },
-      2
-    )
+  export const jsonStringify = (value: object) => safeJsonStringify(value, (_, val) => (typeof val === 'bigint' ? `${val}n` : typeof val === 'symbol' ? val.toString() : val), 2)
 
   /* --------------------------------------------------------------- Arrays --------------------------------------------------------------- */
   export const includes = <T>(arr: readonly T[], item: unknown): item is T => [item, ...arr].slice(1).includes(item)
@@ -143,6 +134,18 @@ export namespace utils {
 
   /* -------------------------------------------------------------- Functions ------------------------------------------------------------- */
   export const memoize = _memoize
+
+  export const Constants = {
+    patterns: {
+      alphanum: /^[a-zA-Z\d]+$/,
+      cuid: /^c[^\s-]{8,}$/i,
+      data_uri: /^data:[\w+.-]+\/[\w+.-]+;((charset=[\w-]+|base64),)?(.*)$/,
+      email: /^(([^<>()[\].,;:\s@"]+(\.[^<>()[\].,;:\s@"]+)*)|(".+"))@(([^<>()[\].,;:\s@"]+\.)+[^<>()[\].,;:\s@"]{2,})$/,
+      hex: /^[a-f\d]+$/i,
+      iso_duration: /^P(?!$)(\d+Y)?(\d+M)?(\d+W)?(\d+D)?(T(?=\d)(\d+H)?(\d+M)?(\d+S)?)?$/,
+      uuid: /^([a-f\d]{8}-[a-f\d]{4}-[1-5][a-f\d]{3}-[a-f\d]{4}-[a-f\d]{12}|00000000-0000-0000-0000-000000000000)$/i,
+    },
+  } as const
 
   /* -------------------------------------------------------------- Internals ------------------------------------------------------------- */
   namespace _internals {
