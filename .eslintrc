@@ -8,11 +8,12 @@
   "parserOptions": {
     "project": "./tsconfig.json"
   },
-  "plugins": ["@typescript-eslint", "compat"],
+  "plugins": ["@typescript-eslint", "regexp", "compat"],
   "extends": [
     "eslint:recommended",
     "plugin:@typescript-eslint/eslint-recommended",
     "plugin:@typescript-eslint/recommended",
+    "plugin:regexp/recommended",
     "plugin:compat/recommended"
   ],
   "rules": {

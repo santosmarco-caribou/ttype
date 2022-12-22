@@ -1,11 +1,19 @@
 import type { TError } from './error'
 import type { ParsePath, TParsedType } from './parse'
-import type { TArrayCheck, TDateCheck, TSetCheck, TTupleCheck, TTypeName } from './types'
+import type {
+  TArrayCheck,
+  TDateCheck,
+  TSetCheck,
+  TStringCheck,
+  TTupleCheck,
+  TTypeName,
+} from './types'
 import type { utils } from './utils'
 
 export enum IssueKind {
   Required = 'required',
   InvalidType = 'invalid_type',
+  InvalidString = 'invalid_string',
   InvalidArray = 'invalid_array',
   InvalidDate = 'invalid_date',
   InvalidSet = 'invalid_set',
@@ -53,6 +61,7 @@ export type IssueMap = {
     readonly expected: TParsedType
     readonly received: TParsedType
   }>
+  [IssueKind.InvalidString]: MakeIssue<TStringCheck>
   [IssueKind.InvalidArray]: MakeIssue<TArrayCheck>
   [IssueKind.InvalidDate]: MakeIssue<TDateCheck>
   [IssueKind.InvalidSet]: MakeIssue<TSetCheck>
@@ -97,28 +106,28 @@ export type NoMsgIssue<K extends IssueKind = IssueKind> = K extends unknown
   : never
 
 export namespace checks {
-  type Construct<C extends string, T extends Record<string, unknown>> = {
+  export type Make<C extends string, T extends Record<string, unknown> | null> = {
     readonly check: C
     readonly message: string | undefined
-  } & T
+  } & (T extends null ? unknown : T)
 
-  type MinMax<T extends 'min' | 'max', V = number> = Construct<
+  type MinMax<T extends 'min' | 'max', V = number> = Make<
     T,
     { readonly value: V; readonly inclusive: boolean }
   >
   export type Min<V = number> = MinMax<'min', V>
   export type Max<V = number> = MinMax<'max', V>
 
-  export type Range<V = number> = Construct<
+  export type Range<V = number> = Make<
     'range',
     { readonly min: V; readonly max: V; readonly inclusive: 'min' | 'max' | 'both' | 'none' }
   >
 
-  type LenSize<T extends 'len' | 'size', V = number> = Construct<T, { readonly value: V }>
+  type LenSize<T extends 'len' | 'size', V = number> = Make<T, { readonly value: V }>
   export type Length<V = number> = LenSize<'len', V>
   export type Size<V = number> = LenSize<'size', V>
 
-  type Sort<T extends 'ascending' | 'descending'> = Construct<
+  type Sort<T extends 'ascending' | 'descending'> = Make<
     `sort_${T}`,
     { readonly direction: T; readonly convert: boolean }
   >
