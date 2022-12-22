@@ -58,9 +58,8 @@ export abstract class TType<O, Def extends TDef, I = O> {
     if (!TGlobal.getOptions().colorsEnabled) {
       return this._hint
     }
-
     return this._hint.replace(
-      /(\s\d*\s)|("\w*")|(?:(\[)(\w*)(:)|(args(?:_\d*)?))|(\?|\||&|\.{3}|readonly)|(\w*(?!\??:|"))/g,
+      /(\s\d*\s)|("\w*")|(\[)(\w*)(:)|(args(?:_\d*)?)|([?|&]|\.{3}|readonly)|(\w*(?!\??:|"))/g,
       `${blue('$1')}${yellow('$2')}$3${red('$4')}$5${red('$6')}${magenta('$7')}${cyan('$8')}`
     )
   }
@@ -308,23 +307,318 @@ export class TUnknown extends TType<unknown, TUnknownDef> {
 /*                                             String                                             */
 /* ---------------------------------------------------------------------------------------------- */
 
-export interface TStringDef extends TDef {
-  readonly typeName: TTypeName.String
+export type TStringCheck =
+  | checks.Min
+  | checks.Max
+  | checks.Length
+  | checks.Make<'pattern', { readonly pattern: RegExp; readonly name: string }>
+  | checks.Make<'alphanum', null>
+  | checks.Make<'cuid', null>
+  | checks.Make<'data_uri', null>
+  | checks.Make<'email', null>
+  | checks.Make<'hex', null>
+  | checks.Make<'iso_duration', null>
+  | checks.Make<'uuid', null>
+  | checks.Make<'url', null>
+  | checks.Make<'trim', null>
+  | checks.Make<'starts_with', { readonly prefix: string }>
+  | checks.Make<'ends_with', { readonly suffix: string }>
+  | checks.Make<'lowercase', { readonly convert: boolean }>
+  | checks.Make<'uppercase', { readonly convert: boolean }>
+
+export interface TStringState {
+  coerce: boolean
+  casing: 'none' | 'lower' | 'upper'
 }
 
-export class TString extends TType<string, TStringDef> {
+export interface TStringDef extends TDef {
+  readonly typeName: TTypeName.String
+  readonly rules: readonly TStringCheck[]
+  readonly coerce: boolean
+}
+
+export class TString<S extends TStringState = TStringState> extends TType<
+  { none: string; lower: Lowercase<string>; upper: Uppercase<string> }[S['casing']],
+  TStringDef
+> {
   readonly _hint = 'string'
 
   _parse(ctx: ParseContextOf<this>): ParseResultOf<this> {
+    if (this._def.coerce) {
+      ctx.setData(String(ctx.data))
+    }
+
     if (!(typeof ctx.data === 'string')) {
       return ctx.INVALID_TYPE({ expected: TParsedType.String }).ABORT()
     }
 
-    return ctx.OK(ctx.data)
+    for (const rule of this._def.rules) {
+      switch (rule.check) {
+        case 'min':
+          if (
+            (rule.inclusive && ctx.data.length < rule.value) ||
+            (!rule.inclusive && ctx.data.length <= rule.value)
+          ) {
+            ctx.DIRTY(IssueKind.InvalidString, rule)
+            if (ctx.common.abortEarly) return ctx.ABORT()
+          }
+          break
+        case 'max':
+          if (
+            (rule.inclusive && ctx.data.length > rule.value) ||
+            (!rule.inclusive && ctx.data.length >= rule.value)
+          ) {
+            ctx.DIRTY(IssueKind.InvalidString, rule)
+            if (ctx.common.abortEarly) return ctx.ABORT()
+          }
+          break
+        case 'len':
+          if (ctx.data.length !== rule.value) {
+            ctx.DIRTY(IssueKind.InvalidString, rule)
+            if (ctx.common.abortEarly) return ctx.ABORT()
+          }
+          break
+        case 'pattern':
+          if (!rule.pattern.test(ctx.data)) {
+            ctx.DIRTY(IssueKind.InvalidString, rule)
+            if (ctx.common.abortEarly) return ctx.ABORT()
+          }
+          break
+        case 'alphanum':
+        case 'cuid':
+        case 'data_uri':
+        case 'email':
+        case 'hex':
+        case 'iso_duration':
+        case 'uuid':
+          if (!utils.Constants.patterns[rule.check].test(ctx.data)) {
+            ctx.DIRTY(IssueKind.InvalidString, rule)
+            if (ctx.common.abortEarly) return ctx.ABORT()
+          }
+          break
+        case 'url':
+          try {
+            new URL(ctx.data)
+          } catch {
+            ctx.DIRTY(IssueKind.InvalidString, rule)
+            if (ctx.common.abortEarly) return ctx.ABORT()
+          }
+          break
+        case 'trim':
+          ctx.setData(ctx.data.trim())
+          break
+        case 'starts_with':
+          if (!ctx.data.startsWith(rule.prefix)) {
+            ctx.DIRTY(IssueKind.InvalidString, rule)
+            if (ctx.common.abortEarly) return ctx.ABORT()
+          }
+          break
+        case 'ends_with':
+          if (!ctx.data.endsWith(rule.suffix)) {
+            ctx.DIRTY(IssueKind.InvalidString, rule)
+            if (ctx.common.abortEarly) return ctx.ABORT()
+          }
+          break
+        case 'lowercase':
+          if (rule.convert) ctx.setData(ctx.data.toLowerCase())
+          else if (ctx.data !== ctx.data.toLowerCase()) {
+            ctx.DIRTY(IssueKind.InvalidString, rule)
+            if (ctx.common.abortEarly) return ctx.ABORT()
+          }
+          break
+        case 'uppercase':
+          if (rule.convert) ctx.setData(ctx.data.toUpperCase())
+          else if (ctx.data !== ctx.data.toUpperCase()) {
+            ctx.DIRTY(IssueKind.InvalidString, rule)
+            if (ctx.common.abortEarly) return ctx.ABORT()
+          }
+      }
+    }
+
+    return ctx.isValid() ? ctx.OK(ctx.data as this['_O']) : ctx.ABORT()
   }
 
-  static create = (options?: CreateOptions): TString =>
-    new TString({ typeName: TTypeName.String, options })
+  /**
+   * Enables/disables coercion on the schema. Disabled by default.
+   */
+  coerce<T extends boolean = true>(
+    value: T = true as T
+  ): TString<{ coerce: T; casing: S['casing'] }> {
+    return new TString({ ...this._def, coerce: value })
+  }
+
+  /**
+   * Specifies the minimum number of characters in the string, where:
+   *
+   * @param value - The lowest number of characters allowed.
+   */
+  min<V extends number, I extends boolean = true>(
+    value: V,
+    options?: { readonly inclusive?: I; readonly message?: string },
+    ..._errors: utils.$ValidateNonNegativeInteger<{ 0: V; 1: N.Add<V, 1> }[utils.Equals<I, false>]>
+  ): this {
+    return this._addRule('min', {
+      value,
+      inclusive: options?.inclusive ?? true,
+      message: options?.message,
+    })._removeRules(['len'])
+  }
+
+  /**
+   * Specifies the maximum number of characters in the string, where:
+   *
+   * @param value - The highest number of characters allowed.
+   */
+  max<V extends number, I extends boolean = true>(
+    value: V,
+    options?: { readonly inclusive?: I; readonly message?: string },
+    ..._errors: utils.$ValidateNonNegativeInteger<{ 0: V; 1: N.Sub<V, 1> }[utils.Equals<I, false>]>
+  ): this {
+    return this._addRule('max', {
+      value,
+      inclusive: options?.inclusive ?? true,
+      message: options?.message,
+    })._removeRules(['len'])
+  }
+
+  /**
+   * Specifies the exact number of characters in the string, where:
+   *
+   * @param value - The number of characters allowed.
+   */
+  length<V extends number>(
+    value: V,
+    options?: { readonly message?: string },
+    ..._errors: utils.$ValidateNonNegativeInteger<V>
+  ): this {
+    return this._addRule('len', { value, message: options?.message })._removeRules(['min', 'max'])
+  }
+
+  /**
+   * Specifies that the string must match a regular expression pattern, where:
+   *
+   * @param pattern - A regular expression object the string value is tested against.
+   * @param options.name - Optional name for the pattern (useful with multiple patterns).
+   * Defaults to the stringified version of the RegExp.
+   */
+  pattern(pattern: RegExp, options?: { readonly name?: string; readonly message?: string }): this {
+    return this._addRule('pattern', {
+      pattern,
+      name: options?.name ?? pattern.source,
+      message: options?.message,
+    })
+  }
+
+  /**
+   * Requires the value to only contain `a-z`, `A-Z`, and `0-9`.
+   */
+  alphanumeric(options?: { readonly message?: string }): this {
+    return this._addRule('alphanum', { message: options?.message })
+  }
+
+  /**
+   * @alias {@link alphanumeric | `alphanumeric`}
+   */
+  alphanum(options?: { readonly message?: string }): this {
+    return this.alphanumeric(options)
+  }
+
+  /**
+   * Requires the value to be a valid email address.
+   */
+  email(options?: { readonly message?: string }): this {
+    return this._addRule('email', { message: options?.message })
+  }
+
+  /**
+   * Specifies that the string must be a valid URL.
+   */
+  url(options?: { readonly message?: string }): this {
+    return this._addRule('url', { message: options?.message })
+  }
+
+  /**
+   * Specifies that the string must be a valid UUID.
+   */
+  uuid(options?: { readonly message?: string }): this {
+    return this._addRule('uuid', { message: options?.message })
+  }
+
+  /**
+   * Specifies that the string must be a valid CUID.
+   */
+  cuid(options?: { readonly message?: string }): this {
+    return this._addRule('cuid', { message: options?.message })
+  }
+
+  /**
+   * Specifies that the string must be a valid data URI.
+   */
+  datauri(options?: { readonly message?: string }): this {
+    return this._addRule('data_uri', { message: options?.message })
+  }
+
+  /**
+   * Specifies that the string must be a valid hexadecimal string.
+   */
+  hex(options?: { readonly message?: string }): this {
+    return this._addRule('hex', { message: options?.message })
+  }
+
+  /**
+   * Specifies that the string must be a valid ISO 8601 duration.
+   */
+  isoduration(options?: { readonly message?: string }): this {
+    return this._addRule('iso_duration', { message: options?.message })
+  }
+
+  /**
+   * Specifies that the string must be trimmed prior to parsing.
+   */
+  trim(): this {
+    return this._addRule('trim', { message: undefined })
+  }
+
+  /**
+   * Specifies that the string must start with the given prefix, where:
+   *
+   * @param prefix - The prefix that the string must start with.
+   */
+  startsWith(prefix: string, options?: { readonly message?: string }): this {
+    return this._addRule('starts_with', { prefix, message: options?.message })
+  }
+
+  /**
+   * Specifies that the string must end with the given suffix, where:
+   *
+   * @param suffix - The suffix that the string must end with.
+   */
+  endsWith(suffix: string, options?: { readonly message?: string }): this {
+    return this._addRule('ends_with', { suffix, message: options?.message })
+  }
+
+  lowercase<C extends boolean = true>(options?: {
+    readonly convert?: C
+    readonly message?: string
+  }): TString<{ coerce: S['coerce']; casing: 'lower' }> {
+    return this._addRule('lowercase', {
+      convert: options?.convert ?? true,
+      message: options?.message,
+    })._removeRules(['uppercase']) as TString<{ coerce: S['coerce']; casing: 'lower' }>
+  }
+
+  uppercase<C extends boolean = true>(options?: {
+    readonly convert?: C
+    readonly message?: string
+  }): TString<{ coerce: S['coerce']; casing: 'upper' }> {
+    return this._addRule('uppercase', {
+      convert: options?.convert ?? true,
+      message: options?.message,
+    })._removeRules(['lowercase']) as TString<{ coerce: S['coerce']; casing: 'upper' }>
+  }
+
+  static create = (options?: CreateOptions): TString<{ coerce: false; casing: 'none' }> =>
+    new TString({ typeName: TTypeName.String, options, rules: [], coerce: false })
 }
 
 /* ---------------------------------------------------------------------------------------------- */
@@ -683,7 +977,7 @@ export class TDate<S extends TDateState = TDateState> extends TType<Date, TDateD
   }
 
   /**
-   * Specifies the oldest date allowed where:
+   * Specifies the oldest date allowed, where:
    *
    * @param value - The oldest date allowed.
    * @param options - Options for this rule.
@@ -721,7 +1015,7 @@ export class TDate<S extends TDateState = TDateState> extends TType<Date, TDateD
   }
 
   /**
-   * Specifies the latest date allowed where:
+   * Specifies the latest date allowed, where:
    *
    * @param value - The latest date allowed.
    * @param options - Options for this rule.
@@ -759,7 +1053,7 @@ export class TDate<S extends TDateState = TDateState> extends TType<Date, TDateD
   }
 
   /**
-   * Specifies a range of dates where:
+   * Specifies a range of dates, where:
    *
    * @param min - The oldest date allowed.
    * @param max - The latest date allowed.
