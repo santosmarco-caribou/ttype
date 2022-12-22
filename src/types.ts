@@ -290,9 +290,9 @@ export abstract class TType<O, Def extends TDef<O>, I = O> {
 
 export type AnyTType<O = unknown, I = O> = TType<O, TDef, I>
 
-/* ---------------------------------------------------------------------------------------------- */
-/*                                               Any                                              */
-/* ---------------------------------------------------------------------------------------------- */
+/* ------------------------------------------------------------------------------------------------------------------ */
+/*                                                         Any                                                        */
+/* ------------------------------------------------------------------------------------------------------------------ */
 
 export interface TAnyDef extends TDef {
   readonly typeName: TTypeName.Any
@@ -310,9 +310,9 @@ export class TAny extends TType<any, TAnyDef> {
     new TAny({ typeName: TTypeName.Any, options, meta: { required: false, nullable: true } })
 }
 
-/* ---------------------------------------------------------------------------------------------- */
-/*                                             Unknown                                            */
-/* ---------------------------------------------------------------------------------------------- */
+/* ------------------------------------------------------------------------------------------------------------------ */
+/*                                                       Unknown                                                      */
+/* ------------------------------------------------------------------------------------------------------------------ */
 
 export interface TUnknownDef extends TDef {
   readonly typeName: TTypeName.Unknown
@@ -329,9 +329,9 @@ export class TUnknown extends TType<unknown, TUnknownDef> {
     new TUnknown({ typeName: TTypeName.Unknown, options, meta: { required: false, nullable: true } })
 }
 
-/* ---------------------------------------------------------------------------------------------- */
-/*                                             String                                             */
-/* ---------------------------------------------------------------------------------------------- */
+/* ------------------------------------------------------------------------------------------------------------------ */
+/*                                                       String                                                       */
+/* ------------------------------------------------------------------------------------------------------------------ */
 
 export type TStringCheck =
   | checks.Min
@@ -641,9 +641,9 @@ export class TString<S extends TStringState = TStringState> extends TType<
     new TString({ typeName: TTypeName.String, options, rules: [], coerce: false })
 }
 
-/* ---------------------------------------------------------------------------------------------- */
-/*                                             Number                                             */
-/* ---------------------------------------------------------------------------------------------- */
+/* ------------------------------------------------------------------------------------------------------------------ */
+/*                                                       Number                                                       */
+/* ------------------------------------------------------------------------------------------------------------------ */
 
 export interface TNumberDef extends TDef {
   readonly typeName: TTypeName.Number
@@ -663,9 +663,9 @@ export class TNumber extends TType<number, TNumberDef> {
   static create = (options?: CreateOptions): TNumber => new TNumber({ typeName: TTypeName.Number, options })
 }
 
-/* ---------------------------------------------------------------------------------------------- */
-/*                                             BigInt                                             */
-/* ---------------------------------------------------------------------------------------------- */
+/* ------------------------------------------------------------------------------------------------------------------ */
+/*                                                       BigInt                                                       */
+/* ------------------------------------------------------------------------------------------------------------------ */
 
 export interface TBigIntDef extends TDef {
   readonly typeName: TTypeName.BigInt
@@ -681,9 +681,9 @@ export class TBigInt extends TType<bigint, TBigIntDef> {
   static create = (options?: CreateOptions): TBigInt => new TBigInt({ typeName: TTypeName.BigInt, options })
 }
 
-/* ---------------------------------------------------------------------------------------------- */
-/*                                               NaN                                              */
-/* ---------------------------------------------------------------------------------------------- */
+/* ------------------------------------------------------------------------------------------------------------------ */
+/*                                                         NaN                                                        */
+/* ------------------------------------------------------------------------------------------------------------------ */
 
 export interface TNaNDef extends TDef {
   readonly typeName: TTypeName.NaN
@@ -701,9 +701,9 @@ export class TNaN extends TType<number, TNaNDef> {
   static create = (options?: CreateOptions): TNaN => new TNaN({ typeName: TTypeName.NaN, options })
 }
 
-/* ---------------------------------------------------------------------------------------------- */
-/*                                             Boolean                                            */
-/* ---------------------------------------------------------------------------------------------- */
+/* ------------------------------------------------------------------------------------------------------------------ */
+/*                                                       Boolean                                                      */
+/* ------------------------------------------------------------------------------------------------------------------ */
 
 export interface TBooleanState {
   coerce: { true?: readonly utils.Primitive[]; false?: readonly utils.Primitive[] } | boolean
@@ -811,9 +811,9 @@ export class TBoolean<S extends TBooleanState = TBooleanState> extends TType<boo
     new TBoolean({ typeName: TTypeName.Boolean, options, coerce: false })
 }
 
-/* ---------------------------------------------------------------------------------------------- */
-/*                                              True                                              */
-/* ---------------------------------------------------------------------------------------------- */
+/* ------------------------------------------------------------------------------------------------------------------ */
+/*                                                        True                                                        */
+/* ------------------------------------------------------------------------------------------------------------------ */
 
 export interface TTrueDef extends TDef {
   readonly typeName: TTypeName.True
@@ -829,9 +829,9 @@ export class TTrue extends TType<true, TTrueDef> {
   static create = (options?: CreateOptions): TTrue => new TTrue({ typeName: TTypeName.True, options })
 }
 
-/* ---------------------------------------------------------------------------------------------- */
-/*                                              False                                             */
-/* ---------------------------------------------------------------------------------------------- */
+/* ------------------------------------------------------------------------------------------------------------------ */
+/*                                                        False                                                       */
+/* ------------------------------------------------------------------------------------------------------------------ */
 
 export interface TFalseDef extends TDef {
   readonly typeName: TTypeName.False
@@ -847,9 +847,9 @@ export class TFalse extends TType<false, TFalseDef> {
   static create = (options?: CreateOptions): TFalse => new TFalse({ typeName: TTypeName.False, options })
 }
 
-/* ---------------------------------------------------------------------------------------------- */
-/*                                              Date                                              */
-/* ---------------------------------------------------------------------------------------------- */
+/* ------------------------------------------------------------------------------------------------------------------ */
+/*                                                        Date                                                        */
+/* ------------------------------------------------------------------------------------------------------------------ */
 
 export type TDateCheckInputRaw = utils.LiteralUnion<'now', string> | number | Date | Dayjs
 export type TDateCheckInput = Date | 'now'
@@ -917,17 +917,13 @@ export class TDate<S extends TDateState = TDateState> extends TType<Date, TDateD
             rule.inclusive ? data.isBefore(toDayjsInput(rule.value)) : data.isSameOrBefore(toDayjsInput(rule.value))
           ) {
             ctx.DIRTY(IssueKind.InvalidDate, rule)
-            if (ctx.common.abortEarly) {
-              return ctx.ABORT()
-            }
+            if (ctx.common.abortEarly) return ctx.ABORT()
           }
           break
         case 'max':
           if (rule.inclusive ? data.isAfter(toDayjsInput(rule.value)) : data.isSameOrAfter(toDayjsInput(rule.value))) {
             ctx.DIRTY(IssueKind.InvalidDate, rule)
-            if (ctx.common.abortEarly) {
-              return ctx.ABORT()
-            }
+            if (ctx.common.abortEarly) return ctx.ABORT()
           }
           break
         case 'range':
@@ -942,9 +938,7 @@ export class TDate<S extends TDateState = TDateState> extends TType<Date, TDateD
             )
           ) {
             ctx.DIRTY(IssueKind.InvalidDate, rule)
-            if (ctx.common.abortEarly) {
-              return ctx.ABORT()
-            }
+            if (ctx.common.abortEarly) return ctx.ABORT()
           }
       }
     }
@@ -1084,9 +1078,9 @@ export class TDate<S extends TDateState = TDateState> extends TType<Date, TDateD
     new TDate({ typeName: TTypeName.Date, options, rules: [], coerce: false })
 }
 
-/* ---------------------------------------------------------------------------------------------- */
-/*                                             Symbol                                             */
-/* ---------------------------------------------------------------------------------------------- */
+/* ------------------------------------------------------------------------------------------------------------------ */
+/*                                                       Symbol                                                       */
+/* ------------------------------------------------------------------------------------------------------------------ */
 
 export interface TSymbolDef extends TDef {
   readonly typeName: TTypeName.Symbol
@@ -1102,9 +1096,9 @@ export class TSymbol extends TType<symbol, TSymbolDef> {
   static create = (options?: CreateOptions): TSymbol => new TSymbol({ typeName: TTypeName.Symbol, options })
 }
 
-/* ---------------------------------------------------------------------------------------------- */
-/*                                              Null                                              */
-/* ---------------------------------------------------------------------------------------------- */
+/* ------------------------------------------------------------------------------------------------------------------ */
+/*                                                        Null                                                        */
+/* ------------------------------------------------------------------------------------------------------------------ */
 
 export interface TNullDef extends TDef {
   readonly typeName: TTypeName.Null
@@ -1121,9 +1115,9 @@ export class TNull extends TType<null, TNullDef> {
     new TNull({ typeName: TTypeName.Null, options, meta: { nullable: true } })
 }
 
-/* ---------------------------------------------------------------------------------------------- */
-/*                                            Undefined                                           */
-/* ---------------------------------------------------------------------------------------------- */
+/* ------------------------------------------------------------------------------------------------------------------ */
+/*                                                      Undefined                                                     */
+/* ------------------------------------------------------------------------------------------------------------------ */
 
 export interface TUndefinedDef extends TDef {
   readonly typeName: TTypeName.Undefined
@@ -1140,9 +1134,9 @@ export class TUndefined extends TType<undefined, TUndefinedDef> {
     new TUndefined({ typeName: TTypeName.Undefined, options, meta: { required: false } })
 }
 
-/* ---------------------------------------------------------------------------------------------- */
-/*                                              Void                                              */
-/* ---------------------------------------------------------------------------------------------- */
+/* ------------------------------------------------------------------------------------------------------------------ */
+/*                                                        Void                                                        */
+/* ------------------------------------------------------------------------------------------------------------------ */
 
 export interface TVoidDef extends TDef {
   readonly typeName: TTypeName.Void
@@ -1159,9 +1153,9 @@ export class TVoid extends TType<void, TVoidDef> {
     new TVoid({ typeName: TTypeName.Void, options, meta: { required: false } })
 }
 
-/* ---------------------------------------------------------------------------------------------- */
-/*                                              Never                                             */
-/* ---------------------------------------------------------------------------------------------- */
+/* ------------------------------------------------------------------------------------------------------------------ */
+/*                                                        Never                                                       */
+/* ------------------------------------------------------------------------------------------------------------------ */
 
 export interface TNeverDef extends TDef<never> {
   readonly typeName: TTypeName.Never
@@ -1177,9 +1171,9 @@ export class TNever extends TType<never, TNeverDef> {
   static create = (options?: CreateOptions): TNever => new TNever({ typeName: TTypeName.Never, options })
 }
 
-/* ---------------------------------------------------------------------------------------------- */
-/*                                             Literal                                            */
-/* ---------------------------------------------------------------------------------------------- */
+/* ------------------------------------------------------------------------------------------------------------------ */
+/*                                                       Literal                                                      */
+/* ------------------------------------------------------------------------------------------------------------------ */
 
 export interface TLiteralDef<V extends utils.Primitive> extends TDef {
   readonly typeName: TTypeName.Literal
@@ -1216,9 +1210,9 @@ export class TLiteral<V extends utils.Primitive> extends TType<V, TLiteralDef<V>
 
 export type AnyTLiteral = TLiteral<utils.Primitive>
 
-/* ---------------------------------------------------------------------------------------------- */
-/*                                              Enum                                              */
-/* ---------------------------------------------------------------------------------------------- */
+/* ------------------------------------------------------------------------------------------------------------------ */
+/*                                                        Enum                                                        */
+/* ------------------------------------------------------------------------------------------------------------------ */
 
 export type EnumValue = string | number
 export type EnumValues<T extends EnumValue = EnumValue> = readonly [T, ...T[]]
@@ -1343,9 +1337,9 @@ export class TEnum<T extends EnumLike> extends TType<T[keyof T], TEnumDef<T>> {
 
 export type AnyTEnum = TEnum<EnumLike>
 
-/* ---------------------------------------------------------------------------------------------- */
-/*                                           InstanceOf                                           */
-/* ---------------------------------------------------------------------------------------------- */
+/* ------------------------------------------------------------------------------------------------------------------ */
+/*                                                     InstanceOf                                                     */
+/* ------------------------------------------------------------------------------------------------------------------ */
 
 export interface TInstanceOfDef<T extends utils.Class> extends TDef {
   readonly typeName: TTypeName.InstanceOf
@@ -1369,9 +1363,9 @@ export class TInstanceOf<T extends utils.Class> extends TType<InstanceType<T>, T
 
 export type AnyTInstanceOf = TInstanceOf<utils.Class>
 
-/* ---------------------------------------------------------------------------------------------- */
-/*                                            Nullable                                            */
-/* ---------------------------------------------------------------------------------------------- */
+/* ------------------------------------------------------------------------------------------------------------------ */
+/*                                                      Nullable                                                      */
+/* ------------------------------------------------------------------------------------------------------------------ */
 
 export interface TNullableDef<T extends AnyTType> extends TDef {
   readonly typeName: TTypeName.Nullable
@@ -1408,9 +1402,9 @@ export class TNullable<T extends AnyTType> extends TType<T['_O'] | null, TNullab
 
 export type AnyTNullable = TNullable<AnyTType>
 
-/* ---------------------------------------------------------------------------------------------- */
-/*                                            Optional                                            */
-/* ---------------------------------------------------------------------------------------------- */
+/* ------------------------------------------------------------------------------------------------------------------ */
+/*                                                      Optional                                                      */
+/* ------------------------------------------------------------------------------------------------------------------ */
 
 export interface TOptionalDef<T extends AnyTType> extends TDef {
   readonly typeName: TTypeName.Optional
@@ -1447,9 +1441,9 @@ export class TOptional<T extends AnyTType> extends TType<T['_O'] | undefined, TO
 
 export type AnyTOptional = TOptional<AnyTType>
 
-/* ---------------------------------------------------------------------------------------------- */
-/*                                            Required                                            */
-/* ---------------------------------------------------------------------------------------------- */
+/* ------------------------------------------------------------------------------------------------------------------ */
+/*                                                      Required                                                      */
+/* ------------------------------------------------------------------------------------------------------------------ */
 
 export interface TRequiredDef<T extends AnyTType> extends TDef {
   readonly typeName: TTypeName.Required
@@ -1496,9 +1490,9 @@ export class TRequired<T extends AnyTType> extends TType<
 
 export type AnyTRequired = TRequired<AnyTType>
 
-/* ---------------------------------------------------------------------------------------------- */
-/*                                              Lazy                                              */
-/* ---------------------------------------------------------------------------------------------- */
+/* ------------------------------------------------------------------------------------------------------------------ */
+/*                                                        Lazy                                                        */
+/* ------------------------------------------------------------------------------------------------------------------ */
 
 export interface TLazyDef<T extends AnyTType> extends TDef {
   readonly typeName: TTypeName.Lazy
@@ -1541,9 +1535,9 @@ export class TLazy<T extends AnyTType> extends TType<T['_O'], TLazyDef<T>, T['_I
 
 export type AnyTLazy = TLazy<AnyTType>
 
-/* ---------------------------------------------------------------------------------------------- */
-/*                                             Promise                                            */
-/* ---------------------------------------------------------------------------------------------- */
+/* ------------------------------------------------------------------------------------------------------------------ */
+/*                                                       Promise                                                      */
+/* ------------------------------------------------------------------------------------------------------------------ */
 
 export interface TPromiseDef<T extends AnyTType> extends TDef {
   readonly typeName: TTypeName.Promise
@@ -1586,9 +1580,9 @@ export class TPromise<T extends AnyTType> extends TType<Promise<T['_O']>, TPromi
 
 export type AnyTPromise = TPromise<AnyTType>
 
-/* ---------------------------------------------------------------------------------------------- */
-/*                                             Branded                                            */
-/* ---------------------------------------------------------------------------------------------- */
+/* ------------------------------------------------------------------------------------------------------------------ */
+/*                                                       Branded                                                      */
+/* ------------------------------------------------------------------------------------------------------------------ */
 
 export const BRAND = Symbol('TBrand')
 export type BRAND = typeof BRAND
@@ -1638,9 +1632,9 @@ export class TBranded<T extends AnyTType, B extends PropertyKey> extends TType<
 
 export type AnyTBranded = TBranded<AnyTType, PropertyKey>
 
-/* ---------------------------------------------------------------------------------------------- */
-/*                                             Default                                            */
-/* ---------------------------------------------------------------------------------------------- */
+/* ------------------------------------------------------------------------------------------------------------------ */
+/*                                                       Default                                                      */
+/* ------------------------------------------------------------------------------------------------------------------ */
 
 export interface TDefaultDef<T extends AnyTType, D extends utils.Defined<T['_I']>> extends TDef {
   readonly typeName: TTypeName.Default
@@ -1694,9 +1688,9 @@ export class TDefault<T extends AnyTType, D extends utils.Defined<T['_I']>> exte
 
 export type AnyTDefault = TDefault<AnyTType, unknown>
 
-/* ---------------------------------------------------------------------------------------------- */
-/*                                              Catch                                             */
-/* ---------------------------------------------------------------------------------------------- */
+/* ------------------------------------------------------------------------------------------------------------------ */
+/*                                                        Catch                                                       */
+/* ------------------------------------------------------------------------------------------------------------------ */
 
 export interface TCatchDef<T extends AnyTType, C extends T['_I']> extends TDef {
   readonly typeName: TTypeName.Catch
@@ -1749,9 +1743,9 @@ export class TCatch<T extends AnyTType, C extends T['_I']> extends TType<T['_O']
 
 export type AnyTCatch = TCatch<AnyTType, unknown>
 
-/* ---------------------------------------------------------------------------------------------- */
-/*                                              Array                                             */
-/* ---------------------------------------------------------------------------------------------- */
+/* ------------------------------------------------------------------------------------------------------------------ */
+/*                                                        Array                                                       */
+/* ------------------------------------------------------------------------------------------------------------------ */
 
 export type TArrayCheck = checks.Min | checks.Max | checks.Length | checks.SortAscending | checks.SortDescending
 
@@ -1988,9 +1982,9 @@ export class TArray<T extends AnyTType, S extends TArrayState = TArrayInitialSta
 
 export type AnyTArray = TArray<AnyTType>
 
-/* ---------------------------------------------------------------------------------------------- */
-/*                                              TSet                                              */
-/* ---------------------------------------------------------------------------------------------- */
+/* ------------------------------------------------------------------------------------------------------------------ */
+/*                                                        TSet                                                        */
+/* ------------------------------------------------------------------------------------------------------------------ */
 
 export type TSetCheck = checks.Min | checks.Max | checks.Size
 
@@ -2139,9 +2133,9 @@ export class TSet<T extends AnyTType, S extends TSetState = TSetInitialState> ex
 
 export type AnyTSet = TSet<AnyTType>
 
-/* ---------------------------------------------------------------------------------------------- */
-/*                                             TTuple                                             */
-/* ---------------------------------------------------------------------------------------------- */
+/* ------------------------------------------------------------------------------------------------------------------ */
+/*                                                       TTuple                                                       */
+/* ------------------------------------------------------------------------------------------------------------------ */
 
 export type TTupleItems = readonly [AnyTType, ...AnyTType[]] | readonly []
 export type TTupleRest = AnyTType
@@ -2290,10 +2284,10 @@ export class TTuple<T extends TTupleItems, R extends TTupleRest | null> extends 
     return new TTuple({ ...this._def, rest: null })
   }
 
-  partial(): TTuple<SetPartialArr<T>, R> {
+  partial(): TTuple<ToTPartialTuple<T>, R> {
     return new TTuple({
       ...this._def,
-      items: this.items.map((i) => (i instanceof TOptional ? i : i.optional())) as SetPartialArr<T>,
+      items: this.items.map((i) => (i instanceof TOptional ? i : i.optional())) as ToTPartialTuple<T>,
     })
   }
 
@@ -2322,9 +2316,9 @@ export class TTuple<T extends TTupleItems, R extends TTupleRest | null> extends 
 
 export type AnyTTuple = TTuple<TTupleItems, TTupleRest | null>
 
-/* ---------------------------------------------------------------------------------------------- */
-/*                                             Record                                             */
-/* ---------------------------------------------------------------------------------------------- */
+/* ------------------------------------------------------------------------------------------------------------------ */
+/*                                                       Record                                                       */
+/* ------------------------------------------------------------------------------------------------------------------ */
 
 export type TRecordIO<K extends AnyTType<PropertyKey>, V extends AnyTType, IO extends '_I' | '_O'> = utils.Simplify<
   utils.EnforceOptional<Record<K[IO], V[IO]>>
@@ -2445,9 +2439,9 @@ export class TRecord<K extends AnyTType<PropertyKey>, V extends AnyTType> extend
 
 export type AnyTRecord = TRecord<AnyTType<PropertyKey>, AnyTType>
 
-/* ---------------------------------------------------------------------------------------------- */
-/*                                              TMap                                              */
-/* ---------------------------------------------------------------------------------------------- */
+/* ------------------------------------------------------------------------------------------------------------------ */
+/*                                                        TMap                                                        */
+/* ------------------------------------------------------------------------------------------------------------------ */
 
 export interface TMapDef<K extends AnyTType, V extends AnyTType> extends TDef {
   readonly typeName: TTypeName.Map
@@ -2516,9 +2510,9 @@ export class TMap<K extends AnyTType, V extends AnyTType> extends TType<
 
 export type AnyTMap = TMap<AnyTType, AnyTType>
 
-/* ---------------------------------------------------------------------------------------------- */
-/*                                             Object                                             */
-/* ---------------------------------------------------------------------------------------------- */
+/* ------------------------------------------------------------------------------------------------------------------ */
+/*                                                       Object                                                       */
+/* ------------------------------------------------------------------------------------------------------------------ */
 
 export type TObjectShape = { [x: string]: AnyTType }
 export type TObjectUnknownKeys = 'passthrough' | 'strip' | 'strict'
@@ -2886,9 +2880,9 @@ export type AnyTObject<S extends TObjectShape = TObjectShape> = TObject<
   TObjectCatchall | null
 >
 
-/* ---------------------------------------------------------------------------------------------- */
-/*                                            Function                                            */
-/* ---------------------------------------------------------------------------------------------- */
+/* ------------------------------------------------------------------------------------------------------------------ */
+/*                                                      Function                                                      */
+/* ------------------------------------------------------------------------------------------------------------------ */
 
 export interface TFunctionDef<A extends AnyTTuple, R extends AnyTType> extends TDef {
   readonly typeName: TTypeName.Function
@@ -3043,9 +3037,9 @@ export class TFunction<A extends AnyTTuple, R extends AnyTType> extends TType<
 
 export type AnyTFunction = TFunction<AnyTTuple, AnyTType>
 
-/* ---------------------------------------------------------------------------------------------- */
-/*                                              Union                                             */
-/* ---------------------------------------------------------------------------------------------- */
+/* ------------------------------------------------------------------------------------------------------------------ */
+/*                                                        Union                                                       */
+/* ------------------------------------------------------------------------------------------------------------------ */
 
 export type TUnionMembers = readonly [AnyTType, AnyTType, ...AnyTType[]]
 
@@ -3097,9 +3091,9 @@ export class TUnion<T extends TUnionMembers> extends TType<T[number]['_O'], TUni
 
 export type AnyTUnion = TUnion<TUnionMembers>
 
-/* ---------------------------------------------------------------------------------------------- */
-/*                                          Intersection                                          */
-/* ---------------------------------------------------------------------------------------------- */
+/* ------------------------------------------------------------------------------------------------------------------ */
+/*                                                    Intersection                                                    */
+/* ------------------------------------------------------------------------------------------------------------------ */
 
 export type TIntersectionMembers = readonly [AnyTType, AnyTType, ...AnyTType[]]
 
@@ -3207,9 +3201,9 @@ export class TIntersection<T extends TIntersectionMembers> extends TType<
 
 export type AnyTIntersection = TIntersection<TIntersectionMembers>
 
-/* ---------------------------------------------------------------------------------------------- */
-/*                                             Effects                                            */
-/* ---------------------------------------------------------------------------------------------- */
+/* ------------------------------------------------------------------------------------------------------------------ */
+/*                                                       Effects                                                      */
+/* ------------------------------------------------------------------------------------------------------------------ */
 
 export enum EffectKind {
   Preprocess = 'preprocess',
@@ -3445,9 +3439,9 @@ export class TEffects<T extends AnyTType<any>, O = T['_O'], I = T['_I']> extends
 
 export type AnyTEffects = TEffects<AnyTType>
 
-/* ---------------------------------------------------------------------------------------------- */
-/*                                            Pipeline                                            */
-/* ---------------------------------------------------------------------------------------------- */
+/* ------------------------------------------------------------------------------------------------------------------ */
+/*                                                      Pipeline                                                      */
+/* ------------------------------------------------------------------------------------------------------------------ */
 
 export interface TPipelineDef<In extends AnyTType, Out extends AnyTType> extends TDef {
   readonly typeName: TTypeName.Pipeline
@@ -3499,9 +3493,9 @@ export class TPipeline<In extends AnyTType, Out extends AnyTType> extends TType<
 
 export type AnyTPipeline = TPipeline<AnyTType, AnyTType>
 
-/* ---------------------------------------------------------------------------------------------- */
-/*                                             Extras                                             */
-/* ---------------------------------------------------------------------------------------------- */
+/* ------------------------------------------------------------------------------------------------------------------ */
+/*                                                       Extras                                                       */
+/* ------------------------------------------------------------------------------------------------------------------ */
 
 export const TNullish: {
   readonly create: <T extends AnyTType>(underlying: T, options?: CreateOptions) => TOptional<TNullable<T>>
@@ -3528,7 +3522,7 @@ export const TDecorator: {
   },
 }
 
-/* ---------------------------------------------------------------------------------------------- */
+/* ------------------------------------------------------------------------------------------------------------------ */
 
 export enum TTypeName {
   Any = 'TAny',
@@ -3612,7 +3606,7 @@ export type TTypeNameMap = {
   [TTypeName.Void]: TVoid
 }
 
-/* ---------------------------------------------------------------------------------------------- */
+/* ------------------------------------------------------------------------------------------------------------------ */
 
 export const tany = TAny.create
 export const tarray = TArray.create
@@ -3712,25 +3706,25 @@ export {
   tvoid as void,
 }
 
-/* ---------------------------------------------------------------------------------------------- */
+/* ------------------------------------------------------------------------------------------------------------------ */
 
 export type output<T extends AnyTType> = utils.FixEmptyObject<T['_O']>
 export type input<T extends AnyTType> = utils.FixEmptyObject<T['_I']>
 export type infer<T extends AnyTType> = output<T>
 
-/* ---------------------------------- Utils --------------------------------- */
+/* ------------------------------------------------------ Utils ----------------------------------------------------- */
 
 export type ToTPartialObj<T, K extends keyof T = keyof T> = {
   [K_ in K]: T[K_] extends AnyTOptional ? T[K_] : T[K_] extends AnyTType ? TOptional<T[K_]> : never
 }
 
-export type SetPartialArr<T extends readonly [AnyTType, ...AnyTType[]] | readonly []> = T extends readonly []
+export type ToTPartialTuple<T extends readonly [AnyTType, ...AnyTType[]] | readonly []> = T extends readonly []
   ? T
   : T extends [infer H extends AnyTType, ...infer R]
   ? [
       H extends AnyTOptional ? H : TOptional<H>,
       ...(R extends readonly [AnyTType, ...AnyTType[]]
-        ? SetPartialArr<R>
+        ? ToTPartialTuple<R>
         : R extends readonly [AnyTType]
         ? R[0] extends AnyTOptional
           ? R[0]
