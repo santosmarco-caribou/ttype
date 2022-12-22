@@ -1,5 +1,5 @@
 import { nanoid } from 'nanoid'
-import { DEFAULT_ERROR_MAP, TError, resolveErrorMap, type ErrorMap } from './error'
+import { TError, getDefaultErrorMap, resolveErrorMap, type ErrorMap } from './error'
 import { TGlobal } from './global'
 import {
   IssueKind,
@@ -9,12 +9,12 @@ import {
   type IssueTypeInfo,
   type NoMsgIssue,
 } from './issues'
-import type { AnyTType } from './types'
+import type { AnyTType, EnumValue, EnumValues } from './types'
 import { utils } from './utils'
 
-/* -------------------------------------------------------------------------- */
-/*                                 ParseResult                                */
-/* -------------------------------------------------------------------------- */
+/* ------------------------------------------------------------------------------------------------------------------ */
+/*                                                     ParseResult                                                    */
+/* ------------------------------------------------------------------------------------------------------------------ */
 
 export interface SuccessfulParseResult<O = unknown> {
   readonly ok: true
@@ -38,9 +38,9 @@ export type SyncParseResultOf<T extends AnyTType> = SyncParseResult<T['_O'], T['
 export type AsyncParseResultOf<T extends AnyTType> = AsyncParseResult<T['_O'], T['_I']>
 export type ParseResultOf<T extends AnyTType> = ParseResult<T['_O'], T['_I']>
 
-/* -------------------------------------------------------------------------- */
-/*                                ParseContext                                */
-/* -------------------------------------------------------------------------- */
+/* ------------------------------------------------------------------------------------------------------------------ */
+/*                                                    ParseContext                                                    */
+/* ------------------------------------------------------------------------------------------------------------------ */
 
 export type ParsePath = readonly (string | number)[]
 
@@ -58,25 +58,23 @@ export interface ParseContextCommon extends ParseOptions {
   readonly async: boolean
 }
 
-export interface ParseContextCloneDef<O = unknown, I = O> {
+export interface ParseContextCloneDef<O, I> {
   readonly type: AnyTType<O, I>
 }
 
-export interface ParseContextChildDef<D = unknown, O = unknown, I = O>
-  extends ParseContextCloneDef<O, I> {
-  readonly data: D
+export interface ParseContextChildDef<O, I> extends ParseContextCloneDef<O, I> {
+  readonly data: unknown
   readonly path: ParsePath
 }
 
-export interface ParseContextDef<D = unknown, O = unknown, I = O>
-  extends ParseContextChildDef<D, O, I> {
+export interface ParseContextDef<O = unknown, I = O> extends ParseContextChildDef<O, I> {
   readonly parent: ParseContext | null
   readonly common: ParseContextCommon
 }
 
-export class ParseContext<D = unknown, O = unknown, I = O> {
+export class ParseContext<O = unknown, I = O> {
   private _status: ParseStatus = ParseStatus.Valid
-  private _data: D
+  private _data: unknown
 
   readonly type: AnyTType<O, I>
   readonly path: ParsePath
@@ -86,7 +84,7 @@ export class ParseContext<D = unknown, O = unknown, I = O> {
   private readonly _ownChildren: ParseContext[] = []
   private readonly _issues: Issue[] = []
 
-  private constructor(def: ParseContextDef<D, O, I>) {
+  private constructor(def: ParseContextDef<O, I>) {
     this._data = def.data
     this.type = def.type
     this.path = def.path
@@ -94,7 +92,7 @@ export class ParseContext<D = unknown, O = unknown, I = O> {
     this.common = def.common
   }
 
-  get data(): D {
+  get data(): unknown {
     return utils.cloneDeep(this._data)
   }
 
@@ -102,9 +100,9 @@ export class ParseContext<D = unknown, O = unknown, I = O> {
     return getParsedType(this.data)
   }
 
-  setData<D_ extends D>(data: D_): ParseContext<D_, O, I> {
+  setData(data: unknown): this {
     this._data = data
-    return this as unknown as ParseContext<D_, O, I>
+    return this
   }
 
   get allChildren(): readonly ParseContext[] {
@@ -115,12 +113,11 @@ export class ParseContext<D = unknown, O = unknown, I = O> {
     return this._issues
   }
 
-  child<D_, O_, I_>(def: ParseContextChildDef<D_, O_, I_>): ParseContext<D_, O_, I_> {
-    const { type, data, path } = def
+  child<O_, I_>(def: ParseContextChildDef<O_, I_>): ParseContext<O_, I_> {
     const child = new ParseContext({
-      type,
-      data,
-      path: this.path.concat(path),
+      type: def.type,
+      data: def.data,
+      path: this.path.concat(def.path),
       parent: this,
       common: this.common,
     })
@@ -128,10 +125,9 @@ export class ParseContext<D = unknown, O = unknown, I = O> {
     return child
   }
 
-  clone<O_, I_>(def: ParseContextCloneDef<O_, I_>): ParseContext<D, O_, I_> {
-    const { type } = def
+  clone<O_, I_>(def: ParseContextCloneDef<O_, I_>): ParseContext<O_, I_> {
     const clone = new ParseContext({
-      type,
+      type: def.type,
       data: this.data,
       path: this.path,
       parent: this.parent,
@@ -146,23 +142,21 @@ export class ParseContext<D = unknown, O = unknown, I = O> {
   }
 
   isInvalid(): boolean {
-    return (
-      this._status === ParseStatus.Invalid || this.allChildren.some((child) => child.isInvalid())
-    )
+    return this._status === ParseStatus.Invalid || this.allChildren.some((child) => child.isInvalid())
   }
 
-  setInvalid(): this {
+  private _setInvalid(): this {
     if (this._status === ParseStatus.Invalid) {
       return this
     }
     this._status = ParseStatus.Invalid
-    this.parent?.setInvalid()
+    this.parent?._setInvalid()
     return this
   }
 
-  setIssue(issue: Issue): this {
+  private _setIssue(issue: Issue): this {
     this._issues.push(issue)
-    this.parent?.setIssue(issue)
+    this.parent?._setIssue(issue)
     return this
   }
 
@@ -175,49 +169,32 @@ export class ParseContext<D = unknown, O = unknown, I = O> {
         return this
       }
     } else {
-      this.setInvalid()
+      this._setInvalid()
     }
 
-    const payload = args[0]
-
-    const issueInput: IssueInput = {
-      data: this.data,
-      parsedType: this.dataType,
-    }
-
-    const issueTypeInfo: IssueTypeInfo = {
-      name: this.type.typeName,
-      hint: this.type._hint,
-    }
-
-    const issueMetadata: IssueMetadata = {
-      id: nanoid(),
-      timestamp: Date.now(),
-    }
+    const issuePayload = args[0]
+    const issueInput: IssueInput = { data: this.data, parsedType: this.dataType }
+    const issueTypeInfo: IssueTypeInfo = { name: this.type.typeName, hint: this.type._hint }
+    const issueMetadata: IssueMetadata = { id: nanoid(), timestamp: Date.now() }
 
     const issue = {
       kind,
-      payload,
       path: this.path,
+      payload: issuePayload,
       input: issueInput,
       type: issueTypeInfo,
       _meta: issueMetadata,
     } as NoMsgIssue
 
     const issueMessage =
-      payload && 'message' in payload
-        ? payload.message
-        : [
-            this.common.errorMap,
-            this.type.options.errorMap,
-            TGlobal.getErrorMap(),
-            DEFAULT_ERROR_MAP,
-          ]
+      issuePayload && 'message' in issuePayload
+        ? issuePayload.message
+        : [this.common.errorMap, this.type.options.errorMap, TGlobal.getErrorMap(), getDefaultErrorMap()]
             .filter(utils.isDefined)
             .reverse()
             .reduce((msg, map) => resolveErrorMap(map)(issue, { defaultMsg: msg }), '')
 
-    this.setIssue({ ...issue, message: issueMessage } as Issue)
+    this._setIssue({ ...issue, message: issueMessage } as Issue)
 
     return this
   }
@@ -240,45 +217,29 @@ export class ParseContext<D = unknown, O = unknown, I = O> {
       : this.DIRTY(IssueKind.InvalidType, { expected: payload.expected, received: this.dataType })
   }
 
-  INVALID_ENUM_VALUE(payload: {
-    readonly expected: readonly (string | number)[]
-    readonly received: string | number
-  }) {
+  INVALID_ENUM_VALUE(payload: { readonly expected: EnumValues; readonly received: EnumValue }) {
     return this.DIRTY(IssueKind.InvalidEnumValue, {
-      expected: {
-        values: payload.expected,
-        formatted: payload.expected.map(utils.literalize).join(' | '),
-      },
-      received: {
-        value: payload.received,
-        formatted: utils.literalize(payload.received),
-      },
+      expected: { values: payload.expected, formatted: payload.expected.map(utils.literalize).join(' | ') },
+      received: { value: payload.received, formatted: utils.literalize(payload.received) },
     })
   }
 
-  INVALID_LITERAL(payload: {
-    readonly expected: utils.Primitive
-    readonly received: utils.Primitive
-  }): this {
-    const makeExpectedReceived = (value: utils.Primitive) => ({
-      value,
-      formatted: utils.literalize(value),
-    })
+  INVALID_LITERAL(payload: { readonly expected: utils.Primitive; readonly received: utils.Primitive }): this {
     return this.DIRTY(IssueKind.InvalidLiteral, {
-      expected: makeExpectedReceived(payload.expected),
-      received: makeExpectedReceived(payload.received),
+      expected: { value: payload.expected, formatted: utils.literalize(payload.expected) },
+      received: { value: payload.received, formatted: utils.literalize(payload.received) },
     })
   }
 
   INVALID_ARGUMENTS(payload: { readonly error: TError }) {
-    return this.DIRTY(IssueKind.InvalidArguments, payload)
+    return this.DIRTY(IssueKind.InvalidArguments, { issues: payload.error.issues })
   }
 
   INVALID_RETURN_TYPE(payload: { readonly error: TError }) {
-    return this.DIRTY(IssueKind.InvalidReturnType, payload)
+    return this.DIRTY(IssueKind.InvalidReturnType, { issues: payload.error.issues })
   }
 
-  INVALID_UNION(payload: { issues: readonly Issue[] }) {
+  INVALID_UNION(payload: { readonly issues: readonly Issue[] }) {
     return this.DIRTY(IssueKind.InvalidUnion, { unionIssues: payload.issues })
   }
 
@@ -287,9 +248,7 @@ export class ParseContext<D = unknown, O = unknown, I = O> {
   }
 
   INVALID_INSTANCE(payload: { readonly expected: string }): this {
-    return this.DIRTY(IssueKind.InvalidInstance, {
-      expected: { className: payload.expected },
-    })
+    return this.DIRTY(IssueKind.InvalidInstance, { expected: { className: payload.expected } })
   }
 
   UNRECOGNIZED_KEYS(payload: { readonly keys: string[] }): this {
@@ -302,24 +261,29 @@ export class ParseContext<D = unknown, O = unknown, I = O> {
 
   private static _makeBuilder =
     (async: boolean) =>
-    <D, O, I>(type: AnyTType<O, I>, data: D, options: ParseOptions | undefined) =>
+    <O, I>(type: AnyTType<O, I>, data: unknown, options: ParseOptions | undefined) =>
       new ParseContext({
         type,
         data,
         path: [],
         parent: null,
-        common: { ...TGlobal.getOptions(), ...type.options, ...options, async },
+        common: {
+          ...TGlobal.getOptions(),
+          ...type.options,
+          ...options,
+          async,
+        },
       })
 
   static createSync = this._makeBuilder(false)
   static createAsync = this._makeBuilder(true)
 }
 
-export type ParseContextOf<T extends AnyTType> = ParseContext<unknown, T['_O'], T['_I']>
+export type ParseContextOf<T extends AnyTType> = ParseContext<T['_O'], T['_I']>
 
-/* -------------------------------------------------------------------------- */
-/*                                 ParsedType                                 */
-/* -------------------------------------------------------------------------- */
+/* ------------------------------------------------------------------------------------------------------------------ */
+/*                                                     ParsedType                                                     */
+/* ------------------------------------------------------------------------------------------------------------------ */
 
 export enum TParsedType {
   Array = 'Array',
