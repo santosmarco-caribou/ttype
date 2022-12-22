@@ -58,7 +58,7 @@ Creating a simple string schema
 import { t } from 'ttypes'
 
 // a schema to parse strings
-const myStringSchema = z.string()
+const myStringSchema = t.string()
 
 // parsing
 myStringSchema.parse('tuna')
@@ -85,7 +85,7 @@ const User = t.object({
 User.parse({ username: 'Ludwig' })
 
 // extract the inferred type
-type User = z.infer<typeof User>
+type User = t.infer<typeof User>
 // => { username: string }
 ```
 
@@ -143,7 +143,7 @@ type FishEnum = t.infer<typeof FishEnum>
 // => 'Salmon' | 'Tuna' | 'Trout'
 ```
 
-`t.enum()` is a `TTypes`-native way to declare a schema with a fixed set of allowable string or numeric values. Pass the array of values directly into `z.enum()`. Alternatively, use `as const` to define your enum values as a tuple of strings.
+`t.enum()` is a `TTypes`-native way to declare a schema with a fixed set of allowable string or numeric values. Pass the array of values directly into `t.enum()`. Alternatively, use `as const` to define your enum values as a tuple of strings.
 
 ```ts
 const values = ['Salmon', 'Tuna', 'Trout'] as const
