@@ -1,6 +1,7 @@
-import type { TError } from './error'
 import type { ParsePath, TParsedType } from './parse'
 import type {
+  EnumValue,
+  EnumValues,
   TArrayCheck,
   TDateCheck,
   TSetCheck,
@@ -57,53 +58,34 @@ type MakeIssue<P extends IssuePayload> = {
 
 export type IssueMap = {
   [IssueKind.Required]: MakeIssue<null>
-  [IssueKind.InvalidType]: MakeIssue<{
-    readonly expected: TParsedType
-    readonly received: TParsedType
-  }>
+  [IssueKind.InvalidType]: MakeIssue<{ readonly expected: TParsedType; readonly received: TParsedType }>
   [IssueKind.InvalidString]: MakeIssue<TStringCheck>
   [IssueKind.InvalidArray]: MakeIssue<TArrayCheck>
   [IssueKind.InvalidDate]: MakeIssue<TDateCheck>
   [IssueKind.InvalidSet]: MakeIssue<TSetCheck>
   [IssueKind.InvalidTuple]: MakeIssue<TTupleCheck>
   [IssueKind.InvalidEnumValue]: MakeIssue<{
-    readonly expected: { readonly values: readonly (string | number)[]; readonly formatted: string }
-    readonly received: { readonly value: string | number; readonly formatted: string }
+    readonly expected: { readonly values: EnumValues; readonly formatted: string }
+    readonly received: { readonly value: EnumValue; readonly formatted: string }
   }>
   [IssueKind.InvalidLiteral]: MakeIssue<{
     readonly expected: { readonly value: utils.Primitive; readonly formatted: string }
     readonly received: { readonly value: utils.Primitive; readonly formatted: string }
   }>
-  [IssueKind.InvalidArguments]: MakeIssue<{
-    readonly error: TError
-  }>
-  [IssueKind.InvalidReturnType]: MakeIssue<{
-    readonly error: TError
-  }>
-  [IssueKind.InvalidUnion]: MakeIssue<{
-    readonly unionIssues: readonly Issue[]
-  }>
+  [IssueKind.InvalidArguments]: MakeIssue<{ readonly issues: readonly Issue[] }>
+  [IssueKind.InvalidReturnType]: MakeIssue<{ readonly issues: readonly Issue[] }>
+  [IssueKind.InvalidUnion]: MakeIssue<{ readonly unionIssues: readonly Issue[] }>
   [IssueKind.InvalidIntersection]: MakeIssue<null>
-  [IssueKind.InvalidInstance]: MakeIssue<{
-    readonly expected: { readonly className: string }
-  }>
-  [IssueKind.UnrecognizedKeys]: MakeIssue<{
-    readonly keys: readonly string[]
-  }>
+  [IssueKind.InvalidInstance]: MakeIssue<{ readonly expected: { readonly className: string } }>
+  [IssueKind.UnrecognizedKeys]: MakeIssue<{ readonly keys: readonly string[] }>
   [IssueKind.Forbidden]: MakeIssue<null>
-  [IssueKind.Custom]: MakeIssue<{
-    readonly message?: string
-    readonly params?: unknown
-  }>
+  [IssueKind.Custom]: MakeIssue<{ readonly message?: string; readonly params?: unknown }>
 } extends infer X
   ? { [K in keyof X]: X[K] & { readonly kind: K | `${K & string}` } }
   : never
 
 export type Issue<K extends IssueKind = IssueKind> = IssueMap[K]
-
-export type NoMsgIssue<K extends IssueKind = IssueKind> = K extends unknown
-  ? Omit<Issue<K>, 'message'>
-  : never
+export type NoMsgIssue<K extends IssueKind = IssueKind> = K extends unknown ? Omit<Issue<K>, 'message'> : never
 
 export namespace checks {
   export type Make<C extends string, T extends Record<string, unknown> | null> = {
@@ -111,10 +93,7 @@ export namespace checks {
     readonly message: string | undefined
   } & (T extends null ? unknown : T)
 
-  type MinMax<T extends 'min' | 'max', V = number> = Make<
-    T,
-    { readonly value: V; readonly inclusive: boolean }
-  >
+  type MinMax<T extends 'min' | 'max', V = number> = Make<T, { readonly value: V; readonly inclusive: boolean }>
   export type Min<V = number> = MinMax<'min', V>
   export type Max<V = number> = MinMax<'max', V>
 
