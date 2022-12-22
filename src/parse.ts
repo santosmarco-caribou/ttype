@@ -174,7 +174,11 @@ export class ParseContext<O = unknown, I = O> {
 
     const issuePayload = args[0]
     const issueInput: IssueInput = { data: this.data, parsedType: this.dataType }
-    const issueTypeInfo: IssueTypeInfo = { name: this.type.typeName, hint: this.type._hint }
+    const issueTypeInfo: IssueTypeInfo = {
+      name: this.type.typeName,
+      hint: this.type.show({ colors: false }),
+      meta: this.type.meta,
+    }
     const issueMetadata: IssueMetadata = { id: nanoid(), timestamp: Date.now() }
 
     const issue = {
@@ -187,7 +191,7 @@ export class ParseContext<O = unknown, I = O> {
     } as NoMsgIssue
 
     const issueMessage =
-      issuePayload && 'message' in issuePayload
+      issuePayload && 'message' in issuePayload && !!issuePayload.message
         ? issuePayload.message
         : [this.common.errorMap, this.type.options.errorMap, TGlobal.getErrorMap(), getDefaultErrorMap()]
             .filter(utils.isDefined)

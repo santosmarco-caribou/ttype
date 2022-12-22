@@ -65,7 +65,7 @@ export abstract class TType<O, Def extends TDef<O>, I = O> {
 
   abstract _parse(ctx: ParseContext<O, I>): ParseResultOf<this>
 
-  abstract readonly _hint: string
+  protected abstract readonly _hint: string
 
   // readonly id: string = nanoid()
 
@@ -73,11 +73,11 @@ export abstract class TType<O, Def extends TDef<O>, I = O> {
     return this._def.typeName
   }
 
-  get hint(): string {
-    if (!TGlobal.getOptions().colorsEnabled) {
-      return this._hint
+  show({ colors = true }: { readonly colors?: boolean }): string {
+    if (!colors || !TGlobal.getOptions().colors) {
+      return this['_hint']
     }
-    return this._hint.replace(
+    return this['_hint'].replace(
       /(\s\d*\s)|("\w*")|(\[)(\w*)(:)|(args(?:_\d*)?)|([?|&]|\.{3}|readonly)|(\w*(?!\??:|"))/g,
       `${blue('$1')}${yellow('$2')}$3${red('$4')}$5${red('$6')}${magenta('$7')}${cyan('$8')}`
     )
@@ -300,7 +300,7 @@ export interface TAnyDef extends TDef {
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 export class TAny extends TType<any, TAnyDef> {
-  readonly _hint = 'any'
+  protected readonly _hint = 'any'
 
   _parse(ctx: ParseContextOf<this>): ParseResultOf<this> {
     return ctx.OK(ctx.data)
@@ -319,7 +319,7 @@ export interface TUnknownDef extends TDef {
 }
 
 export class TUnknown extends TType<unknown, TUnknownDef> {
-  readonly _hint = 'unknown'
+  protected readonly _hint = 'unknown'
 
   _parse(ctx: ParseContextOf<this>): ParseResultOf<this> {
     return ctx.OK(ctx.data)
@@ -343,6 +343,7 @@ export type TStringCheck =
   | checks.Make<'data_uri', null>
   | checks.Make<'email', null>
   | checks.Make<'hex', null>
+  | checks.Make<'iso_date', null>
   | checks.Make<'iso_duration', null>
   | checks.Make<'uuid', null>
   | checks.Make<'url', null>
@@ -354,7 +355,7 @@ export type TStringCheck =
 
 export interface TStringState {
   coerce: boolean
-  casing: 'none' | 'lower' | 'upper'
+  case: 'none' | 'lower' | 'upper'
 }
 
 export interface TStringDef extends TDef {
@@ -364,10 +365,10 @@ export interface TStringDef extends TDef {
 }
 
 export class TString<S extends TStringState = TStringState> extends TType<
-  { none: string; lower: Lowercase<string>; upper: Uppercase<string> }[S['casing']],
+  { none: string; lower: Lowercase<string>; upper: Uppercase<string> }[S['case']],
   TStringDef
 > {
-  readonly _hint = 'string'
+  protected readonly _hint = 'string'
 
   _parse(ctx: ParseContextOf<this>): ParseResultOf<this> {
     if (this._def.coerce) {
@@ -409,6 +410,7 @@ export class TString<S extends TStringState = TStringState> extends TType<
         case 'data_uri':
         case 'email':
         case 'hex':
+        case 'iso_date':
         case 'iso_duration':
         case 'uuid':
           if (!utils.Constants.patterns[rule.check].test(ctx.data)) {
@@ -461,7 +463,7 @@ export class TString<S extends TStringState = TStringState> extends TType<
   /**
    * Enables/disables coercion on the schema. Disabled by default.
    */
-  coerce<T extends boolean = true>(value: T = true as T): TString<{ coerce: T; casing: S['casing'] }> {
+  coerce<T extends boolean = true>(value: T = true as T): TString<{ coerce: T; case: S['case'] }> {
     return new TString({ ...this._def, coerce: value })
   }
 
@@ -618,24 +620,24 @@ export class TString<S extends TStringState = TStringState> extends TType<
   lowercase<C extends boolean = true>(options?: {
     readonly convert?: C
     readonly message?: string
-  }): TString<{ coerce: S['coerce']; casing: 'lower' }> {
+  }): TString<{ coerce: S['coerce']; case: 'lower' }> {
     return this._addRule('lowercase', {
       convert: options?.convert ?? true,
       message: options?.message,
-    })._removeRules(['uppercase']) as TString<{ coerce: S['coerce']; casing: 'lower' }>
+    })._removeRules(['uppercase']) as TString<{ coerce: S['coerce']; case: 'lower' }>
   }
 
   uppercase<C extends boolean = true>(options?: {
     readonly convert?: C
     readonly message?: string
-  }): TString<{ coerce: S['coerce']; casing: 'upper' }> {
+  }): TString<{ coerce: S['coerce']; case: 'upper' }> {
     return this._addRule('uppercase', {
       convert: options?.convert ?? true,
       message: options?.message,
-    })._removeRules(['lowercase']) as TString<{ coerce: S['coerce']; casing: 'upper' }>
+    })._removeRules(['lowercase']) as TString<{ coerce: S['coerce']; case: 'upper' }>
   }
 
-  static create = (options?: CreateOptions): TString<{ coerce: false; casing: 'none' }> =>
+  static create = (options?: CreateOptions): TString<{ coerce: false; case: 'none' }> =>
     new TString({ typeName: TTypeName.String, options, rules: [], coerce: false })
 }
 
@@ -648,7 +650,7 @@ export interface TNumberDef extends TDef {
 }
 
 export class TNumber extends TType<number, TNumberDef> {
-  readonly _hint = 'number'
+  protected readonly _hint = 'number'
 
   _parse(ctx: ParseContextOf<this>): ParseResultOf<this> {
     if (!(typeof ctx.data === 'number')) {
@@ -670,7 +672,7 @@ export interface TBigIntDef extends TDef {
 }
 
 export class TBigInt extends TType<bigint, TBigIntDef> {
-  readonly _hint = 'bigint'
+  protected readonly _hint = 'bigint'
 
   _parse(ctx: ParseContextOf<this>): ParseResultOf<this> {
     return typeof ctx.data === 'bigint' ? ctx.OK(ctx.data) : ctx.INVALID_TYPE({ expected: TParsedType.BigInt }).ABORT()
@@ -688,7 +690,7 @@ export interface TNaNDef extends TDef {
 }
 
 export class TNaN extends TType<number, TNaNDef> {
-  readonly _hint = 'NaN'
+  protected readonly _hint = 'NaN'
 
   _parse(ctx: ParseContextOf<this>): ParseResultOf<this> {
     return typeof ctx.data === 'number' && Number.isNaN(ctx.data)
@@ -720,7 +722,7 @@ export interface TBooleanDef extends TDef, TBooleanState {
 }
 
 export class TBoolean<S extends TBooleanState = TBooleanState> extends TType<boolean, TBooleanDef, TBooleanInput<S>> {
-  readonly _hint = 'boolean'
+  protected readonly _hint = 'boolean'
 
   _parse(ctx: ParseContextOf<this>): ParseResultOf<this> {
     const { coerce } = this._def
@@ -818,7 +820,7 @@ export interface TTrueDef extends TDef {
 }
 
 export class TTrue extends TType<true, TTrueDef> {
-  readonly _hint = 'true'
+  protected readonly _hint = 'true'
 
   _parse(ctx: ParseContextOf<this>): ParseResultOf<this> {
     return ctx.data === true ? ctx.OK(ctx.data) : ctx.INVALID_TYPE({ expected: TParsedType.True }).ABORT()
@@ -836,7 +838,7 @@ export interface TFalseDef extends TDef {
 }
 
 export class TFalse extends TType<false, TFalseDef> {
-  readonly _hint = 'false'
+  protected readonly _hint = 'false'
 
   _parse(ctx: ParseContextOf<this>): ParseResultOf<this> {
     return ctx.data === false ? ctx.OK(ctx.data) : ctx.INVALID_TYPE({ expected: TParsedType.False }).ABORT()
@@ -878,7 +880,7 @@ export interface TDateDef extends TDef, TDateState {
 }
 
 export class TDate<S extends TDateState = TDateState> extends TType<Date, TDateDef, TDateInput<S>> {
-  readonly _hint = 'Date'
+  protected readonly _hint = 'Date'
 
   _parse(ctx: ParseContextOf<this>): ParseResultOf<this> {
     const { coerce, rules } = this._def
@@ -1091,7 +1093,7 @@ export interface TSymbolDef extends TDef {
 }
 
 export class TSymbol extends TType<symbol, TSymbolDef> {
-  readonly _hint = 'symbol'
+  protected readonly _hint = 'symbol'
 
   _parse(ctx: ParseContextOf<this>): ParseResultOf<this> {
     return typeof ctx.data === 'symbol' ? ctx.OK(ctx.data) : ctx.INVALID_TYPE({ expected: TParsedType.Symbol }).ABORT()
@@ -1109,7 +1111,7 @@ export interface TNullDef extends TDef {
 }
 
 export class TNull extends TType<null, TNullDef> {
-  readonly _hint = 'null'
+  protected readonly _hint = 'null'
 
   _parse(ctx: ParseContextOf<this>): ParseResultOf<this> {
     return ctx.data === null ? ctx.OK(ctx.data) : ctx.INVALID_TYPE({ expected: TParsedType.Null }).ABORT()
@@ -1128,7 +1130,7 @@ export interface TUndefinedDef extends TDef {
 }
 
 export class TUndefined extends TType<undefined, TUndefinedDef> {
-  readonly _hint = 'undefined'
+  protected readonly _hint = 'undefined'
 
   _parse(ctx: ParseContextOf<this>): ParseResultOf<this> {
     return ctx.data === undefined ? ctx.OK(ctx.data) : ctx.INVALID_TYPE({ expected: TParsedType.Undefined }).ABORT()
@@ -1147,7 +1149,7 @@ export interface TVoidDef extends TDef {
 }
 
 export class TVoid extends TType<void, TVoidDef> {
-  readonly _hint = 'void'
+  protected readonly _hint = 'void'
 
   _parse(ctx: ParseContextOf<this>): ParseResultOf<this> {
     return ctx.data === undefined ? ctx.OK(ctx.data) : ctx.INVALID_TYPE({ expected: TParsedType.Void }).ABORT()
@@ -1166,7 +1168,7 @@ export interface TNeverDef extends TDef<never> {
 }
 
 export class TNever extends TType<never, TNeverDef> {
-  readonly _hint = 'never'
+  protected readonly _hint = 'never'
 
   _parse(ctx: ParseContextOf<this>): ParseResultOf<this> {
     return ctx.FORBIDDEN().ABORT()
@@ -1185,7 +1187,7 @@ export interface TLiteralDef<V extends utils.Primitive> extends TDef {
 }
 
 export class TLiteral<V extends utils.Primitive> extends TType<V, TLiteralDef<V>> {
-  readonly _hint = utils.literalize(this._def.value)
+  protected readonly _hint = utils.literalize(this._def.value)
 
   _parse(ctx: ParseContextOf<this>): ParseResultOf<this> {
     if (!utils.isPrimitive(ctx.data)) {
@@ -1246,7 +1248,7 @@ export interface TEnumDef<T extends EnumLike> extends TDef {
 }
 
 export class TEnum<T extends EnumLike> extends TType<T[keyof T], TEnumDef<T>> {
-  readonly _hint = this.values.map(utils.literalize).join(' | ')
+  protected readonly _hint = this.values.map(utils.literalize).join(' | ')
 
   _parse(ctx: ParseContextOf<this>): ParseResultOf<this> {
     const enumTypes = [
@@ -1351,7 +1353,7 @@ export interface TInstanceOfDef<T extends utils.Class> extends TDef {
 }
 
 export class TInstanceOf<T extends utils.Class> extends TType<InstanceType<T>, TInstanceOfDef<T>> {
-  readonly _hint = `InstanceOf<${this.cls.name}>`
+  protected readonly _hint = `InstanceOf<${this.cls.name}>`
 
   _parse(ctx: ParseContextOf<this>): ParseResultOf<this> {
     return ctx.data instanceof this.cls ? ctx.OK(ctx.data) : ctx.INVALID_INSTANCE({ expected: this.cls.name }).ABORT()
@@ -1381,7 +1383,7 @@ export type UnwrapTNullableDeep<T> = T extends TNullable<infer U> ? UnwrapTNulla
 export class TNullable<T extends AnyTType> extends TType<T['_O'] | null, TNullableDef<T>, T['_I'] | null> {
   get _hint() {
     const needsParens = this.underlying.isType(TTypeName.Function)
-    return `${needsParens ? '(' : ''}${this.underlying._hint}${needsParens ? ')' : ''} | null`
+    return `${needsParens ? '(' : ''}${this.underlying['_hint']}${needsParens ? ')' : ''} | null`
   }
 
   _parse(ctx: ParseContextOf<this>): ParseResultOf<this> {
@@ -1420,7 +1422,7 @@ export type UnwrapTOptionalDeep<T> = T extends TOptional<infer U> ? UnwrapTOptio
 export class TOptional<T extends AnyTType> extends TType<T['_O'] | undefined, TOptionalDef<T>, T['_I'] | undefined> {
   get _hint() {
     const needsParens = this.underlying.isType(TTypeName.Function)
-    return `${needsParens ? '(' : ''}${this.underlying._hint}${needsParens ? ')' : ''} | undefined`
+    return `${needsParens ? '(' : ''}${this.underlying['_hint']}${needsParens ? ')' : ''} | undefined`
   }
 
   _parse(ctx: ParseContextOf<this>): ParseResultOf<this> {
@@ -1461,7 +1463,7 @@ export class TRequired<T extends AnyTType> extends TType<
   TRequiredDef<T>,
   utils.Defined<T['_I']>
 > {
-  readonly _hint = `Required<${this.underlying._hint}>`
+  protected readonly _hint = `Required<${this.underlying['_hint']}>`
 
   _parse(ctx: ParseContextOf<this>): ParseResultOf<this> {
     if (ctx.data === undefined) {
@@ -1507,7 +1509,7 @@ export type UnwrapTLazyDeep<T> = T extends TLazy<infer U> ? UnwrapTLazyDeep<U> :
 
 export class TLazy<T extends AnyTType> extends TType<T['_O'], TLazyDef<T>, T['_I']> {
   get _hint() {
-    return this.underlying._hint
+    return this.underlying['_hint']
   }
 
   _parse(ctx: ParseContextOf<this>): ParseResultOf<this> {
@@ -1532,7 +1534,7 @@ export class TLazy<T extends AnyTType> extends TType<T['_O'], TLazyDef<T>, T['_I
       options,
       getType: factory,
       get meta() {
-        return { ...factory().meta }
+        return factory().meta
       },
     })
 }
@@ -1551,7 +1553,7 @@ export interface TPromiseDef<T extends AnyTType> extends TDef {
 export type UnwrapTPromiseDeep<T> = T extends TPromise<infer U> ? UnwrapTPromiseDeep<U> : T
 
 export class TPromise<T extends AnyTType> extends TType<Promise<T['_O']>, TPromiseDef<T>, Promise<T['_I']>> {
-  readonly _hint = `Promise<${this.awaited._hint}>`
+  protected readonly _hint = `Promise<${this.awaited['_hint']}>`
 
   _parse(ctx: ParseContextOf<this>): ParseResultOf<this> {
     if (!(ctx.data instanceof Promise) && ctx.common.async === false) {
@@ -1605,7 +1607,7 @@ export class TBranded<T extends AnyTType, B extends PropertyKey> extends TType<
   TBrandedDef<T, B>,
   T['_I']
 > {
-  readonly _hint: `Branded<${T['_hint']}>` = `Branded<${this.underlying['_hint']}>`
+  protected readonly _hint = `Branded<${this.underlying['_hint']}>`
 
   _parse(ctx: ParseContextOf<this>): ParseResultOf<this> {
     return this.underlying._parse(ctx.clone({ type: this.underlying })) as ParseResultOf<this>
@@ -1651,7 +1653,7 @@ export class TDefault<T extends AnyTType, D extends utils.Defined<T['_I']>> exte
   TDefaultDef<T, D>,
   T['_I'] | undefined
 > {
-  readonly _hint: `Default<${T['_hint']}>` = `Default<${this.underlying['_hint']}>`
+  protected readonly _hint = `Default<${this.underlying['_hint']}>`
 
   _parse(ctx: ParseContextOf<this>): ParseResultOf<this> {
     if (ctx.data === undefined) {
@@ -1703,7 +1705,7 @@ export interface TCatchDef<T extends AnyTType, C extends T['_I']> extends TDef {
 }
 
 export class TCatch<T extends AnyTType, C extends T['_I']> extends TType<T['_O'] | C, TCatchDef<T, C>, T['_I']> {
-  readonly _hint: `Catch<${T['_hint']}>` = `Catch<${this.underlying['_hint']}>`
+  protected readonly _hint = `Catch<${this.underlying['_hint']}>`
 
   _parse(ctx: ParseContextOf<this>): ParseResultOf<this> {
     const result = this.underlying._parse(ctx.clone({ type: this.underlying }))
@@ -1795,7 +1797,7 @@ export class TArray<T extends AnyTType, S extends TArrayState = TArrayInitialSta
       TTypeName.Optional,
       TTypeName.Nullable
     )
-    return `${needsParens ? '(' : ''}${this.element._hint}${needsParens ? ')' : ''}[]`
+    return `${needsParens ? '(' : ''}${this.element['_hint']}${needsParens ? ')' : ''}[]`
   }
 
   _parse(ctx: ParseContextOf<this>): ParseResultOf<this> {
@@ -2012,7 +2014,7 @@ export class TSet<T extends AnyTType, S extends TSetState = TSetInitialState> ex
   TSetDef<T>,
   Set<T['_I']>
 > {
-  readonly _hint: `Set<${T['_hint']}>` = `Set<${this.element._hint}>`
+  protected readonly _hint = `Set<${this.element['_hint']}>`
 
   _parse(ctx: ParseContextOf<this>): ParseResultOf<this> {
     if (!(ctx.data instanceof Set)) {
@@ -2185,9 +2187,9 @@ export class TTuple<T extends TTupleItems, R extends TTupleRest | null> extends 
   TTupleDef<T, R>,
   TTupleIO<T, R, '_I'>
 > {
-  readonly _hint = `readonly [${this.items.map((i) => (i.isOptional() ? `(${i._hint})?` : i._hint)).join(', ')}${
-    this.restType ? `${this.items.length > 0 ? ', ' : ''}...${this.restType.array()._hint}` : ''
-  }]`
+  protected readonly _hint = `readonly [${this.items
+    .map((i) => (i.isOptional() ? `(${i['_hint']})?` : i['_hint']))
+    .join(', ')}${this.restType ? `${this.items.length > 0 ? ', ' : ''}...${this.restType.array()['_hint']}` : ''}]`
 
   _parse(ctx: ParseContextOf<this>): ParseResultOf<this> {
     if (!Array.isArray(ctx.data)) {
@@ -2339,7 +2341,7 @@ export class TRecord<K extends AnyTType<PropertyKey>, V extends AnyTType> extend
   TRecordDef<K, V>,
   TRecordIO<K, V, '_I'>
 > {
-  readonly _hint = `Record<${this.keys._hint}, ${this.values._hint}>`
+  protected readonly _hint = `Record<${this.keys['_hint']}, ${this.values['_hint']}>`
 
   _parse(ctx: ParseContextOf<this>): ParseResultOf<this> {
     if (!utils.isObject(ctx.data)) {
@@ -2458,7 +2460,7 @@ export class TMap<K extends AnyTType, V extends AnyTType> extends TType<
   TMapDef<K, V>,
   Map<K['_I'], V['_I']>
 > {
-  readonly _hint = `Map<${this.keys._hint}, ${this.values._hint}>`
+  protected readonly _hint = `Map<${this.keys['_hint']}, ${this.values['_hint']}>`
 
   _parse(ctx: ParseContextOf<this>): ParseResultOf<this> {
     if (!(ctx.data instanceof Map)) {
@@ -2623,11 +2625,11 @@ export class TObject<
     const needsParens = this._def.catchall || utils.includes(['passthrough', 'strict'], this._def.unknownKeys)
 
     const hint = `{ ${Object.entries(this.shape)
-      .map(([k, v]) => `${k}${v.isOptional() ? '?' : ''}: ${v._hint}`)
+      .map(([k, v]) => `${k}${v.isOptional() ? '?' : ''}: ${v['_hint']}`)
       .join(', ')} }${
       this._def.catchall || utils.includes(['passthrough', 'strict'], this._def.unknownKeys)
         ? ` & { [x: string]: ${
-            this._def.catchall?._hint ?? (this._def.unknownKeys === 'passthrough' ? 'unknown' : 'never')
+            this._def.catchall?.['_hint'] ?? (this._def.unknownKeys === 'passthrough' ? 'unknown' : 'never')
           } }`
         : ''
     }`
@@ -2899,13 +2901,13 @@ export class TFunction<A extends AnyTTuple, R extends AnyTType> extends TType<
   TFunctionDef<A, R>,
   (...args: A['_O']) => R['_I']
 > {
-  readonly _hint = `(${this.parameters.items.map((i, idx) => `args_${idx}: ${i._hint}`).join(', ')}${
+  protected readonly _hint = `(${this.parameters.items.map((i, idx) => `args_${idx}: ${i['_hint']}`).join(', ')}${
     this.parameters.restType
       ? `${this.parameters.items.length > 0 ? ', ' : ''}...args${
           this.parameters.items.length === 0 ? '' : `_${this.parameters.items.length}`
-        }: ${this.parameters.restType._hint}[]`
+        }: ${this.parameters.restType['_hint']}[]`
       : ''
-  }) => ${this.returnType._hint}`
+  }) => ${this.returnType['_hint']}`
 
   _parse(ctx: ParseContextOf<this>): ParseResultOf<this> {
     if (!(typeof ctx.data === 'function')) {
@@ -3056,7 +3058,7 @@ export interface TUnionDef<T extends TUnionMembers> extends TDef {
 }
 
 export class TUnion<T extends TUnionMembers> extends TType<T[number]['_O'], TUnionDef<T>, T[number]['_I']> {
-  readonly _hint = this.members.map((m) => m._hint).join(' | ')
+  protected readonly _hint = this.members.map((m) => m['_hint']).join(' | ')
 
   _parse(ctx: ParseContextOf<this>): ParseResultOf<this> {
     const flattenedMembers = flattenUnionMembers(this.members)
@@ -3170,7 +3172,7 @@ export class TIntersection<T extends TIntersectionMembers> extends TType<
   TIntersectionDef<T>,
   utils.UnionToIntersection<T[number]['_I']>
 > {
-  readonly _hint = this.members.map((m) => m._hint).join(' & ')
+  protected readonly _hint = this.members.map((m) => m['_hint']).join(' & ')
 
   _parse(ctx: ParseContextOf<this>): ParseResultOf<this> {
     const handleIntersection = <O, I, T extends readonly SyncParseResult<O, I>[]>(results: T): ParseResultOf<this> => {
@@ -3279,7 +3281,7 @@ export interface TEffectsDef<T extends AnyTType> extends TDef {
 export type GetTEffectsSource<T> = T extends AnyTEffects ? T['source'] : T
 
 export class TEffects<T extends AnyTType<any>, O = T['_O'], I = T['_I']> extends TType<O, TEffectsDef<T>, I> {
-  readonly _hint: string = this.source._hint
+  protected readonly _hint: string = this.source['_hint']
 
   _parse(ctx: ParseContextOf<this>): ParseResultOf<this> {
     const { effect } = this._def
@@ -3369,6 +3371,7 @@ export class TEffects<T extends AnyTType<any>, O = T['_O'], I = T['_I']> extends
       options,
       type,
       effect,
+      meta: type.meta,
     })
 
   private static _refine<T extends AnyTType, O extends T['_O']>(
@@ -3457,7 +3460,7 @@ export class TPipeline<In extends AnyTType, Out extends AnyTType> extends TType<
   TPipelineDef<In, Out>,
   In['_I']
 > {
-  readonly _hint = `Pipeline<${this.out['_hint']}, ${this.in['_hint']}>`
+  protected readonly _hint = `Pipeline<${this.out['_hint']}, ${this.in['_hint']}>`
 
   _parse(ctx: ParseContextOf<this>): ParseResultOf<this> {
     if (ctx.common.async) {

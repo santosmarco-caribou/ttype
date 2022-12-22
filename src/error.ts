@@ -50,7 +50,7 @@ export class TError<O = unknown, I = O> extends Error {
   }
 
   get message() {
-    return '\n\n' + this.issues.map(TGlobal.getIssueFormatter()).join('')
+    return '\n\n' + TGlobal.getIssuesFormatter()(this.issues)
   }
 
   toString() {
@@ -110,30 +110,42 @@ export class TError<O = unknown, I = O> extends Error {
     }
     return { formErrors, fieldErrors }
   }
+
+  static assertNever = (_x?: never): never => {
+    throw new Error('Impossible')
+  }
 }
 
 /* ------------------------------------------------------------------------------------------------------------------ */
 /*                                                   IssueFormatter                                                   */
 /* ------------------------------------------------------------------------------------------------------------------ */
 
-export type IssueFormatter = (issue: Issue) => string
+export type IssuesFormatter = (issues: readonly Issue[]) => string
 
-export const getDefaultIssueFormatter = (): IssueFormatter => (issue) => {
-  const c = (fn: (text: string) => string, text: string) => (TGlobal.getOptions().colorsEnabled ? fn(text) : text)
+export const getDefaultIssuesFormatter = (): IssuesFormatter => (issues) =>
+  issues
+    .map((issue, idx) => {
+      const c = (fn: (text: string) => string, text: string) => (TGlobal.getOptions().colors ? fn(text) : text)
 
-  const header = [
-    c(magenta, `[${issue.kind}]`),
-    c(cyan, c(bold, issue.type.name)),
-    '•',
-    c(bold, issue.message),
-    c(dim, issue.path.length > 0 ? `${c(italic, 'at path:')} "${issue.path.join('.')}"` : ''),
-  ]
+      const idxIndicator = `${idx + 1}/${issues.length}`
 
-  return `${header.join(' ')}\n${inspect(utils.pick(issue, ['payload', 'input', 'type', '_meta']), {
-    depth: Infinity,
-    colors: TGlobal.getOptions().colorsEnabled,
-  })}\n\n`
-}
+      const header = [
+        c(dim, idxIndicator),
+        c(magenta, `[${issue.kind}]`),
+        c(cyan, c(bold, issue.type.name)),
+        '•',
+        c(bold, issue.message),
+        c(dim, issue.path.length > 0 ? `${c(italic, 'at path:')} "${issue.path.join('.')}"` : ''),
+      ]
+
+      return `${header.join(' ')}\n${inspect(utils.pick(issue, ['payload', 'input', 'type', '_meta']), {
+        depth: Infinity,
+        colors: TGlobal.getOptions().colors,
+      })
+        .replace(/^\{|\}$/g, '')
+        .replace(/^( {2})/gm, `$1${' '.repeat(idxIndicator.length)}`)}\n\n`
+    })
+    .join('')
 
 /* ------------------------------------------------------------------------------------------------------------------ */
 /*                                                      ErrorMap                                                      */
@@ -170,7 +182,7 @@ export const resolveErrorMap = (map: ErrorMap): ErrorMapFn => {
 export const getDefaultErrorMap = (): ErrorMap => (issue, ctx) => {
   const makeMinMaxElementsCheckMsg = (
     params: {
-      typeName: 'Array' | 'Set' | 'Tuple'
+      typeName: 'String' | 'Array' | 'Set' | 'Tuple'
       value: number
     } & ({ check: 'min' | 'max'; inclusive: boolean } | { check: 'len' | 'size'; inclusive?: never })
   ) =>
@@ -185,6 +197,40 @@ export const getDefaultErrorMap = (): ErrorMap => (issue, ctx) => {
       return 'Required'
     case IssueKind.InvalidType:
       return `Expected ${issue.payload.expected}, got ${issue.payload.received}`
+    case IssueKind.InvalidString:
+      switch (issue.payload.check) {
+        case 'min':
+        case 'max':
+        case 'len':
+          return makeMinMaxElementsCheckMsg({ typeName: 'String', ...issue.payload })
+        case 'pattern':
+          return `Value must match the pattern: ${issue.payload.name}`
+        case 'alphanum':
+          return 'Value must only contain alpha-numeric characters'
+        case 'cuid':
+        case 'uuid':
+        case 'url':
+          return `Value must be a valid ${issue.payload.check.toUpperCase()}`
+        case 'data_uri':
+          return 'Value must be a valid dataUri string'
+        case 'email':
+          return 'Value must be a valid email'
+        case 'hex':
+          return 'Value must only contain hexadecimal characters'
+        case 'iso_date':
+          return 'Value must be in ISO format'
+        case 'iso_duration':
+          return 'Value must be a valid ISO 8601 duration'
+        case 'starts_with':
+          return `Value must start with "${issue.payload.prefix}"`
+        case 'ends_with':
+          return `Value must end with "${issue.payload.suffix}"`
+        case 'lowercase':
+        case 'uppercase':
+          return `Value must only contain ${issue.payload.check} characters`
+        case 'trim':
+          return TError.assertNever()
+      }
     case IssueKind.InvalidArray:
       switch (issue.payload.check) {
         case 'min':

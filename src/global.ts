@@ -1,23 +1,23 @@
-import { getDefaultErrorMap, getDefaultIssueFormatter, type ErrorMap, type IssueFormatter } from './error'
+import { getDefaultErrorMap, getDefaultIssuesFormatter, type ErrorMap, type IssuesFormatter } from './error'
 import { utils } from './utils'
 
 export interface TGlobalOptions {
   readonly abortEarly?: boolean
   readonly debug?: boolean
-  readonly colorsEnabled?: boolean
+  readonly colors?: boolean
 }
 
 export const getDefaultOptions = (): Required<TGlobalOptions> =>
   utils.cloneDeep({
     abortEarly: false,
     debug: false,
-    colorsEnabled: true,
+    colors: true,
   })
 
 export class TGlobal {
-  private static _getCurrentOptions = getDefaultOptions
-  private static _getCurrentErrorMap = getDefaultErrorMap
-  private static _getCurrentIssueFormatter = getDefaultIssueFormatter
+  private static _getCurrentOptions = () => getDefaultOptions()
+  private static _getCurrentErrorMap = () => getDefaultErrorMap()
+  private static _getCurrentIssuesFormatter = () => getDefaultIssuesFormatter()
 
   static getOptions(): Required<TGlobalOptions> {
     return utils.cloneDeep(this._getCurrentOptions())
@@ -38,12 +38,12 @@ export class TGlobal {
     return this
   }
 
-  static getIssueFormatter(): IssueFormatter {
-    return this._getCurrentIssueFormatter()
+  static getIssuesFormatter(): IssuesFormatter {
+    return this._getCurrentIssuesFormatter()
   }
 
-  static setIssueFormatter(formatter: IssueFormatter): TGlobal {
-    this._getCurrentIssueFormatter = () => formatter
+  static setIssuesFormatter(formatter: IssuesFormatter): TGlobal {
+    this._getCurrentIssuesFormatter = () => formatter
     return this
   }
 }

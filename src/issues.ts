@@ -4,6 +4,7 @@ import type {
   EnumValues,
   TArrayCheck,
   TDateCheck,
+  TMeta,
   TSetCheck,
   TStringCheck,
   TTupleCheck,
@@ -41,6 +42,7 @@ export interface IssueInput {
 export interface IssueTypeInfo {
   readonly name: TTypeName
   readonly hint: string
+  readonly meta: TMeta
 }
 
 export interface IssueMetadata {
