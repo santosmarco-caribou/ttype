@@ -1,6 +1,7 @@
 /* eslint-disable @typescript-eslint/ban-types */
 
 import _cloneDeep from 'clone-deep'
+import { createColors } from 'colorette'
 import _dayjs from 'dayjs'
 import isBetween from 'dayjs/plugin/isBetween'
 import isSameOrAfter from 'dayjs/plugin/isSameOrAfter'
@@ -11,7 +12,7 @@ import _memoize from 'micro-memoize'
 import safeJsonStringify from 'safe-json-stringify'
 import type { N } from 'ts-toolbelt'
 import type { NonNegativeInteger } from 'type-fest'
-import type { AnyTType } from './types'
+import { AnyTType, CreateOptions, TType } from './types'
 
 export namespace utils {
   /* ---------------------------------------------------------------- Types --------------------------------------------------------------- */
@@ -51,11 +52,15 @@ export namespace utils {
   export type UnionToIntersection<T> = (T extends unknown ? (x: T) => void : never) extends (i: infer I) => void ? I : never
   export type GetLastOfUnion<T> = ((T extends unknown ? (x: () => T) => void : never) extends (i: infer I) => void ? I : never) extends () => infer Last ? Last : never
   export type CastToArray<T> = T extends readonly unknown[] ? T : never
+  export type AtLeastOne<T> = readonly [T, ...T[]] | ({ readonly 0: T } & ReadonlyArray<T>)
   export type ConstructTuple<T, L extends number> = _internals.ConstructTuple<T, L>
   export type PartialTuple<T> = T extends readonly [] ? T : T extends readonly [infer H, ...infer R] ? [H?, ...PartialTuple<R>] : never
-  export type EnforcePartialTuple<T> = T extends readonly [] ? T : T extends readonly [infer H, ...infer R] ? [...(undefined extends H ? [H?] : [H]), ...EnforcePartialTuple<R>] : T
+  export type EnforcePartialTuple<T> = T extends readonly [] ? [] : T extends readonly [infer H, ...infer R] ? [...(undefined extends H ? [H?] : [H]), ...EnforcePartialTuple<R>] : T
   export type UnionToTuple<T> = _internals.UnionToTuple<T>
-  export type Tail<T> = T extends readonly [unknown, ...infer U] ? U : []
+  export type Reverse<T extends readonly unknown[]> = T extends readonly [] ? T : T extends readonly [...infer U, infer L] ? [L, ...Reverse<U>] : never
+  export type Head<T extends readonly unknown[]> = T extends readonly [infer H, ...unknown[]] ? H : never
+  export type Tail<T extends readonly unknown[]> = T extends readonly [unknown, ...infer R] ? R : []
+  export type Last<T extends readonly unknown[]> = Head<Reverse<T>>
   declare const TYPE_ERROR: unique symbol
   export type $TypeError<Msg extends string> = { [TYPE_ERROR]: Msg }
   export type $Validation<Condition extends 0 | 1, Msg extends string> = { 0: []; 1: [ERROR: $TypeError<Msg>] }[Condition]
@@ -113,6 +118,8 @@ export namespace utils {
   /* --------------------------------------------------------------- Arrays --------------------------------------------------------------- */
   export const includes = <T>(arr: readonly T[], item: unknown): item is T => [item, ...arr].slice(1).includes(item)
   export const tail = <T extends readonly unknown[]>(arr: T) => arr.slice(1) as Tail<T>
+  export const head = <T extends readonly unknown[]>(arr: T) => arr[0] as Head<T>
+  export const last = <T extends readonly unknown[]>(arr: T) => arr[arr.length - 1] as Last<T>
 
   /* --------------------------------------------------------------- Objects -------------------------------------------------------------- */
   export const cloneDeep = _cloneDeep
@@ -134,7 +141,18 @@ export namespace utils {
 
   /* -------------------------------------------------------------- Functions ------------------------------------------------------------- */
   export const memoize = _memoize
+  export const ensureFlat = <T extends readonly unknown[]>(...args: T): T => (isArray(args[0]) ? args[0] : args)
+  export const handleRestOrArrayArg = <T extends readonly unknown[]>(...args: T): [T, CreateOptions | T[number]] => {
+    const arg = ensureFlat(...args)
+    const maybeCreateOptions = last(args) as CreateOptions | T[number]
+    return [arg, maybeCreateOptions]
+  }
+  export const ensureCreateOptions = (options: CreateOptions | AnyTType): CreateOptions | undefined => (options instanceof TType ? undefined : options)
 
+  /* --------------------------------------------------------------- Colors --------------------------------------------------------------- */
+  export const colors = createColors({ useColor: true })
+
+  /* -------------------------------------------------------------- Constants ------------------------------------------------------------- */
   export const Constants = {
     patterns: {
       alphanum: /^[a-zA-Z\d]+$/,
@@ -150,7 +168,7 @@ export namespace utils {
   } as const
 
   /* -------------------------------------------------------------- Internals ------------------------------------------------------------- */
-  namespace _internals {
+  export namespace _internals {
     export type BuiltIn =
       | { readonly [Symbol.toStringTag]: string }
       | AnyFunction

@@ -10,6 +10,7 @@
   - [Basic usage](#basic-usage)
   - [Primitives](#primitives)
   - [Literals](#literals)
+  - [Strings](#strings)
   - [Enums](#enums)
     - [`enum`](#enum)
     - [`values`](#values)
@@ -132,6 +133,45 @@ const terrific = t.literal(terrificSymbol)
 tuna.value // => 'tuna'
 twelve.value // => 12
 ```
+
+## Strings
+
+```ts
+t.string().min(/* number */)
+t.string().max(/* number */)
+t.string().length(/* number */)
+t.string().pattern(/* regex */) // alias: `.regex()`
+t.string().alphanumeric() // alias: `.alphanum()`
+t.string().email()
+t.string().url()
+t.string().uuid()
+t.string().cuid()
+t.string().datauri()
+t.string().hex()
+t.string().isodate()
+t.string().isoduration()
+t.string().trim() // trims whitespace
+t.string().startsWith(/* prefix */)
+t.string().endsWith(/* suffix */)
+t.string().lowercase()
+t.string().uppercase()
+```
+
+When using validation methods, you can pass in an additional argument to provide a custom error message.
+
+```ts
+t.string().min(5, { message: 'Must be 5 or more characters long' })
+t.string().max(5, { message: 'Must be 5 or fewer characters long' })
+t.string().length(5, { message: 'Must be exactly 5 characters long' })
+t.string().email({ message: 'Invalid email address' })
+t.string().url({ message: 'Invalid URL' })
+t.string().uuid({ message: 'Invalid UUID' })
+t.string().startsWith('https://', { message: 'Must provide secure URL' })
+t.string().endsWith('.com', { message: 'Only .com domains allowed' })
+```
+
+> Alternatively, you can always define your messages directly on an `ErrorMap`.
+> The message passed into the validation method will have precedence over the message defined in the `ErrorMap`, though.
 
 ## Enums
 
