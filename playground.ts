@@ -167,3 +167,18 @@ console.log(
 )
 
 type sdsd = t.infer<typeof a>
+
+console.log(t.string().min(2))
+
+const myString = t
+  .string()
+  .min(2)
+  .max(5)
+  .uppercase()
+  .coerce()
+  .nullable()
+  .optional()
+  .default('a')
+const asdsd = t.any()
+
+t.preprocess((arg) => new Date(), t.date())

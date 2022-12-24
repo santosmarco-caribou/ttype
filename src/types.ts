@@ -1,6 +1,5 @@
 import type { Dayjs } from 'dayjs'
 import { nanoid } from 'nanoid'
-import type { N } from 'ts-toolbelt'
 import type { RequireAtLeastOne } from 'type-fest'
 import type {
   ErrorMap,
@@ -37,12 +36,12 @@ export interface TOptions extends CreateOptions {
   readonly debug?: boolean
 }
 
-export interface TPublicMeta<O = unknown> {
+export interface PublicMeta<T = any> {
   readonly title?: string
   readonly summary?: string
   readonly description?: string
   readonly version?: string
-  readonly examples?: readonly O[]
+  readonly examples?: readonly T[]
   readonly tags?: readonly string[]
   readonly notes?: readonly string[]
   readonly unit?: string
@@ -50,27 +49,38 @@ export interface TPublicMeta<O = unknown> {
   readonly [x: string]: unknown
 }
 
-export interface TMeta<O = unknown> extends TPublicMeta<O> {
+export interface TMeta<T = any> extends PublicMeta<T> {
   readonly required?: boolean
   readonly nullable?: boolean
   readonly readonly?: boolean
 }
 
-export interface TDef<O = any> {
+export type TDef = {
   readonly typeName: TTypeName
-  readonly options: TOptions | undefined
-  readonly meta?: TMeta<O>
-  readonly rules?: readonly { readonly check: string }[]
+  readonly rules?: readonly checks.Base[]
+  readonly [x: string]: unknown
 }
 
-export abstract class TType<O, Def extends TDef<O>, I = O> {
-  readonly _O!: O
-  readonly _I!: I
+export type MakeDef<
+  TN extends TTypeName,
+  T extends Omit<TDef, 'typeName'> | null = null
+> = { readonly typeName: TN } & (T extends null ? unknown : T)
 
-  readonly _def: Def & {
-    readonly options: TOptions
-    readonly meta: TMeta<O>
-  }
+export type InternalDef<O, Def extends TDef> = Def & {
+  readonly options: TOptions
+  readonly meta: TMeta<O>
+}
+
+export type CtorDef<Def extends TDef> = Def & {
+  readonly options: TOptions | undefined
+  readonly meta?: TMeta
+}
+
+export abstract class TType<O, Def extends TDef, I = O> {
+  declare readonly _O: O
+  declare readonly _I: I
+
+  readonly _def: InternalDef<O, Def>
 
   readonly id: string
   readonly typeName: Def['typeName']
@@ -80,7 +90,7 @@ export abstract class TType<O, Def extends TDef<O>, I = O> {
   abstract _parse(ctx: ParseContextOf<this>): ParseResultOf<this>
   protected abstract readonly _hint: string
 
-  protected constructor(def: Def) {
+  protected constructor(def: CtorDef<Def>) {
     this._def = {
       ...def,
       options: { ...def.options },
@@ -333,52 +343,53 @@ export abstract class TType<O, Def extends TDef<O>, I = O> {
     return this._construct({ options })
   }
 
-  setMeta(meta: TPublicMeta<O>): this {
+  setMeta(meta: PublicMeta<O>): this {
     return this._construct({ meta })
   }
 
-  protected _addRule<K extends utils.Defined<Def['rules']>[number]['check']>(
-    check: K,
-    payload: Omit<
-      Extract<utils.Defined<Def['rules']>[number], { readonly check: K }>,
-      'check'
-    >
+  protected _addRule<K extends checks.Kind<Def['rules']>>(
+    kind: K,
+    payload: Omit<checks.GetByKind<Def['rules'], K>, 'check'>
   ): this {
+    if (!this._def.rules) {
+      return this
+    }
     return this._construct({
-      rules: (this._def.rules ?? [])
-        .filter((c) => c.check === check)
-        .concat({ check, ...payload }),
+      rules: this._def.rules
+        .filter((r) => r.check === kind)
+        .concat({ check: kind, ...payload }),
     })
   }
 
   protected _removeRules<
-    K extends utils.Defined<Def['rules']>[number]['check']
-  >(checks: readonly [K, ...K[]]): this {
+    K extends checks.Kind<Def['rules']>,
+    T extends utils.AtLeastOne<K>
+  >(checks: T): this {
+    if (!this._def.rules) {
+      return this
+    }
     return this._construct({
-      rules: (this._def.rules ?? []).filter((c) =>
-        utils.includes(checks, c.check)
-      ),
+      rules: this._def.rules.filter((r) => utils.includes(checks, r.check)),
     })
   }
 
-  protected _construct(def: Partial<TDef>): this {
-    return Reflect.construct(this.constructor as new (def: Def) => this, [
+  protected _construct(def: {
+    readonly [K in keyof InternalDef<O, Def>]?: unknown
+  }): this {
+    return Reflect.construct(this.constructor, [
       utils.mergeDeep(utils.cloneDeep(this._def), def),
     ])
   }
 }
 
-export type AnyTType<O = unknown, I = O> = TType<O, TDef, I>
+export type AnyTType<O = any, I = O> = TType<O, TDef, I>
 
-/* ------------------------------------------------------------------------------------------------------------------ */
-/*                                                         Any                                                        */
-/* ------------------------------------------------------------------------------------------------------------------ */
+/* -------------------------------------------------------------------------- */
+/*                                     Any                                    */
+/* -------------------------------------------------------------------------- */
 
-export interface TAnyDef extends TDef {
-  readonly typeName: TTypeName.Any
-}
+export type TAnyDef = MakeDef<TTypeName.Any>
 
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
 export class TAny extends TType<any, TAnyDef> {
   protected readonly _hint = THint.Any
 
@@ -394,13 +405,11 @@ export class TAny extends TType<any, TAnyDef> {
     })
 }
 
-/* ------------------------------------------------------------------------------------------------------------------ */
-/*                                                       Unknown                                                      */
-/* ------------------------------------------------------------------------------------------------------------------ */
+/* -------------------------------------------------------------------------- */
+/*                                   Unknown                                  */
+/* -------------------------------------------------------------------------- */
 
-export interface TUnknownDef extends TDef {
-  readonly typeName: TTypeName.Unknown
-}
+export type TUnknownDef = MakeDef<TTypeName.Unknown>
 
 export class TUnknown extends TType<unknown, TUnknownDef> {
   protected readonly _hint = THint.Unknown
@@ -417,50 +426,36 @@ export class TUnknown extends TType<unknown, TUnknownDef> {
     })
 }
 
-/* ------------------------------------------------------------------------------------------------------------------ */
-/*                                                       String                                                       */
-/* ------------------------------------------------------------------------------------------------------------------ */
+/* -------------------------------------------------------------------------- */
+/*                                   String                                   */
+/* -------------------------------------------------------------------------- */
 
 export type TStringCheck =
   | checks.Min
   | checks.Max
   | checks.Length
   | checks.Make<'pattern', { readonly pattern: RegExp; readonly name: string }>
-  | checks.Make<'alphanum', null>
-  | checks.Make<'cuid', null>
-  | checks.Make<'data_uri', null>
-  | checks.Make<'email', null>
-  | checks.Make<'hex', null>
-  | checks.Make<'iso_date', null>
-  | checks.Make<'iso_duration', null>
-  | checks.Make<'uuid', null>
-  | checks.Make<'url', null>
-  | checks.Make<'trim', null>
+  | checks.Make<'alphanum'>
+  | checks.Make<'cuid'>
+  | checks.Make<'data_uri'>
+  | checks.Make<'email'>
+  | checks.Make<'hex'>
+  | checks.Make<'iso_date'>
+  | checks.Make<'iso_duration'>
+  | checks.Make<'uuid'>
+  | checks.Make<'url'>
+  | checks.Make<'trim'>
   | checks.Make<'starts_with', { readonly prefix: string }>
   | checks.Make<'ends_with', { readonly suffix: string }>
   | checks.Make<'lowercase', { readonly convert: boolean }>
   | checks.Make<'uppercase', { readonly convert: boolean }>
 
-export interface TStringState {
-  coerce: boolean
-  case: 'none' | 'lower' | 'upper'
-}
+export type TStringDef = MakeDef<
+  TTypeName.String,
+  { readonly rules: checks.ToRules<TStringCheck>; readonly coerce: boolean }
+>
 
-export interface TStringDef extends TDef {
-  readonly typeName: TTypeName.String
-  readonly rules: readonly TStringCheck[]
-  readonly coerce: boolean
-}
-
-export class TString<S extends TStringState = TStringState> extends TType<
-  {
-    none: string
-    lower: Lowercase<string>
-    upper: Uppercase<string>
-  }[S['case']],
-  TStringDef,
-  S['coerce'] extends true ? unknown : string
-> {
+export class TString extends TType<string, TStringDef> {
   protected readonly _hint = THint.String
 
   _parse(ctx: ParseContextOf<this>): ParseResultOf<this> {
@@ -559,26 +554,13 @@ export class TString<S extends TStringState = TStringState> extends TType<
     return ctx.isValid() ? ctx.OK(ctx.data as this['_O']) : ctx.ABORT()
   }
 
-  /**
-   * Enables/disables coercion on the schema. Disabled by default.
-   */
-  coerce<T extends boolean = true>(
-    value: T = true as T
-  ): TString<{ coerce: T; case: S['case'] }> {
+  coerce(value = true): TString {
     return new TString({ ...this._def, coerce: value })
   }
 
-  /**
-   * Specifies the minimum number of characters in the string, where:
-   *
-   * @param value - The lowest number of characters allowed.
-   */
-  min<V extends number, I extends boolean = true>(
-    value: V,
-    options?: { readonly inclusive?: I; readonly message?: string },
-    ..._errors: utils.$ValidateNonNegativeInteger<
-      { 0: V; 1: N.Add<V, 1> }[utils.Equals<I, false>]
-    >
+  min(
+    value: number,
+    options?: { readonly inclusive?: boolean; readonly message?: string }
   ): this {
     return this._addRule('min', {
       value,
@@ -587,17 +569,9 @@ export class TString<S extends TStringState = TStringState> extends TType<
     })._removeRules(['len'])
   }
 
-  /**
-   * Specifies the maximum number of characters in the string, where:
-   *
-   * @param value - The highest number of characters allowed.
-   */
-  max<V extends number, I extends boolean = true>(
-    value: V,
-    options?: { readonly inclusive?: I; readonly message?: string },
-    ..._errors: utils.$ValidateNonNegativeInteger<
-      { 0: V; 1: N.Sub<V, 1> }[utils.Equals<I, false>]
-    >
+  max(
+    value: number,
+    options?: { readonly inclusive?: boolean; readonly message?: string }
   ): this {
     return this._addRule('max', {
       value,
@@ -606,29 +580,13 @@ export class TString<S extends TStringState = TStringState> extends TType<
     })._removeRules(['len'])
   }
 
-  /**
-   * Specifies the exact number of characters in the string, where:
-   *
-   * @param value - The number of characters allowed.
-   */
-  length<V extends number>(
-    value: V,
-    options?: { readonly message?: string },
-    ..._errors: utils.$ValidateNonNegativeInteger<V>
-  ): this {
+  length(value: number, options?: { readonly message?: string }): this {
     return this._addRule('len', {
       value,
       message: options?.message,
     })._removeRules(['min', 'max'])
   }
 
-  /**
-   * Specifies that the string must match a regular expression pattern, where:
-   *
-   * @param pattern - A regular expression object the string value is tested against.
-   * @param options.name - Optional name for the pattern (useful with multiple patterns).
-   * Defaults to the stringified version of the RegExp.
-   */
   pattern(
     pattern: RegExp,
     options?: { readonly name?: string; readonly message?: string }
@@ -640,9 +598,6 @@ export class TString<S extends TStringState = TStringState> extends TType<
     })
   }
 
-  /**
-   * @alias {@link pattern | `pattern`}
-   */
   regex(
     pattern: RegExp,
     options?: { readonly name?: string; readonly message?: string }
@@ -650,138 +605,79 @@ export class TString<S extends TStringState = TStringState> extends TType<
     return this.pattern(pattern, options)
   }
 
-  /**
-   * Requires the value to only contain `a-z`, `A-Z`, and `0-9`.
-   */
   alphanumeric(options?: { readonly message?: string }): this {
     return this._addRule('alphanum', { message: options?.message })
   }
 
-  /**
-   * @alias {@link alphanumeric | `alphanumeric`}
-   */
   alphanum(options?: { readonly message?: string }): this {
     return this.alphanumeric(options)
   }
 
-  /**
-   * Requires the value to be a valid email address.
-   */
   email(options?: { readonly message?: string }): this {
     return this._addRule('email', { message: options?.message })
   }
 
-  /**
-   * Specifies that the string must be a valid URL.
-   */
   url(options?: { readonly message?: string }): this {
     return this._addRule('url', { message: options?.message })
   }
 
-  /**
-   * Specifies that the string must be a valid UUID.
-   */
   uuid(options?: { readonly message?: string }): this {
     return this._addRule('uuid', { message: options?.message })
   }
 
-  /**
-   * Specifies that the string must be a valid CUID.
-   */
   cuid(options?: { readonly message?: string }): this {
     return this._addRule('cuid', { message: options?.message })
   }
 
-  /**
-   * Specifies that the string must be a valid data URI.
-   */
   datauri(options?: { readonly message?: string }): this {
     return this._addRule('data_uri', { message: options?.message })
   }
 
-  /**
-   * Specifies that the string must be a valid hexadecimal string.
-   */
   hex(options?: { readonly message?: string }): this {
     return this._addRule('hex', { message: options?.message })
   }
 
-  /**
-   * Specifies that the string must be a valid ISO 8601 date.
-   */
   isodate(options?: { readonly message?: string }): this {
     return this._addRule('iso_date', { message: options?.message })
   }
 
-  /**
-   * Specifies that the string must be a valid ISO 8601 duration.
-   */
   isoduration(options?: { readonly message?: string }): this {
     return this._addRule('iso_duration', { message: options?.message })
   }
 
-  /**
-   * Specifies that the string must be trimmed prior to parsing.
-   */
   trim(): this {
     return this._addRule('trim', { message: undefined })
   }
 
-  /**
-   * Specifies that the string must start with the given prefix, where:
-   *
-   * @param prefix - The prefix that the string must start with.
-   */
   startsWith(prefix: string, options?: { readonly message?: string }): this {
     return this._addRule('starts_with', { prefix, message: options?.message })
   }
 
-  /**
-   * Specifies that the string must end with the given suffix, where:
-   *
-   * @param suffix - The suffix that the string must end with.
-   */
   endsWith(suffix: string, options?: { readonly message?: string }): this {
     return this._addRule('ends_with', { suffix, message: options?.message })
   }
 
-  /**
-   * Specifies that the string must contain only lowercase characters.
-   * If the `convert` option is `true` (the default), the string will be forced to lowercase.
-   */
-  lowercase<C extends boolean = true>(options?: {
-    readonly convert?: C
+  lowercase(options?: {
+    readonly convert?: boolean
     readonly message?: string
-  }): TString<{ coerce: S['coerce']; case: 'lower' }> {
+  }): TString {
     return this._addRule('lowercase', {
       convert: options?.convert ?? true,
       message: options?.message,
-    })._removeRules(['uppercase']) as TString<{
-      coerce: S['coerce']
-      case: 'lower'
-    }>
+    })._removeRules(['uppercase'])
   }
 
-  /**
-   * Specifies that the string must contain only uppercase characters.
-   * If the `convert` option is `true` (the default), the string will be forced to uppercase.
-   */
-  uppercase<C extends boolean = true>(options?: {
-    readonly convert?: C
+  uppercase(options?: {
+    readonly convert?: boolean
     readonly message?: string
-  }): TString<{ coerce: S['coerce']; case: 'upper' }> {
+  }): TString {
     return this._addRule('uppercase', {
       convert: options?.convert ?? true,
       message: options?.message,
-    })._removeRules(['lowercase']) as TString<{
-      coerce: S['coerce']
-      case: 'upper'
-    }>
+    })._removeRules(['lowercase'])
   }
 
-  static create = (
-    options?: CreateOptions
-  ): TString<{ coerce: false; case: 'none' }> =>
+  static create = (options?: CreateOptions): TString =>
     new TString({
       typeName: TTypeName.String,
       options,
@@ -790,13 +686,11 @@ export class TString<S extends TStringState = TStringState> extends TType<
     })
 }
 
-/* ------------------------------------------------------------------------------------------------------------------ */
-/*                                                       Number                                                       */
-/* ------------------------------------------------------------------------------------------------------------------ */
+/* -------------------------------------------------------------------------- */
+/*                                   Number                                   */
+/* -------------------------------------------------------------------------- */
 
-export interface TNumberDef extends TDef {
-  readonly typeName: TTypeName.Number
-}
+export type TNumberDef = MakeDef<TTypeName.Number>
 
 export class TNumber extends TType<number, TNumberDef> {
   protected readonly _hint = THint.Number
@@ -813,13 +707,11 @@ export class TNumber extends TType<number, TNumberDef> {
     new TNumber({ typeName: TTypeName.Number, options })
 }
 
-/* ------------------------------------------------------------------------------------------------------------------ */
-/*                                                       BigInt                                                       */
-/* ------------------------------------------------------------------------------------------------------------------ */
+/* -------------------------------------------------------------------------- */
+/*                                   BigInt                                   */
+/* -------------------------------------------------------------------------- */
 
-export interface TBigIntDef extends TDef {
-  readonly typeName: TTypeName.BigInt
-}
+export type TBigIntDef = MakeDef<TTypeName.BigInt>
 
 export class TBigInt extends TType<bigint, TBigIntDef> {
   protected readonly _hint = THint.BigInt
@@ -834,13 +726,11 @@ export class TBigInt extends TType<bigint, TBigIntDef> {
     new TBigInt({ typeName: TTypeName.BigInt, options })
 }
 
-/* ------------------------------------------------------------------------------------------------------------------ */
-/*                                                         NaN                                                        */
-/* ------------------------------------------------------------------------------------------------------------------ */
+/* -------------------------------------------------------------------------- */
+/*                                     NaN                                    */
+/* -------------------------------------------------------------------------- */
 
-export interface TNaNDef extends TDef {
-  readonly typeName: TTypeName.NaN
-}
+export type TNaNDef = MakeDef<TTypeName.NaN>
 
 export class TNaN extends TType<number, TNaNDef> {
   protected readonly _hint = THint.NaN
@@ -855,35 +745,20 @@ export class TNaN extends TType<number, TNaNDef> {
     new TNaN({ typeName: TTypeName.NaN, options })
 }
 
-/* ------------------------------------------------------------------------------------------------------------------ */
-/*                                                       Boolean                                                      */
-/* ------------------------------------------------------------------------------------------------------------------ */
+/* -------------------------------------------------------------------------- */
+/*                                   Boolean                                  */
+/* -------------------------------------------------------------------------- */
 
-export interface TBooleanState {
-  coerce:
-    | { true?: readonly utils.Primitive[]; false?: readonly utils.Primitive[] }
-    | boolean
-}
+export type TBooleanCoercion =
+  | boolean
+  | { readonly true?: utils.Primitive[]; readonly false?: utils.Primitive[] }
 
-export type TBooleanInput<S extends TBooleanState> = S['coerce'] extends false
-  ? boolean
-  : S['coerce'] extends true
-  ? unknown
-  : S['coerce'] extends { true?: infer Truthy; false?: infer Falsy }
-  ?
-      | utils.Defined<Truthy[number & keyof Truthy]>
-      | utils.Defined<Falsy[number & keyof Falsy]>
-  : boolean
+export type TBooleanDef = MakeDef<
+  TTypeName.Boolean,
+  { readonly coerce: TBooleanCoercion }
+>
 
-export interface TBooleanDef extends TDef, TBooleanState {
-  readonly typeName: TTypeName.Boolean
-}
-
-export class TBoolean<S extends TBooleanState = TBooleanState> extends TType<
-  boolean,
-  TBooleanDef,
-  TBooleanInput<S>
-> {
+export class TBoolean extends TType<boolean, TBooleanDef> {
   protected readonly _hint = THint.Boolean
 
   _parse(ctx: ParseContextOf<this>): ParseResultOf<this> {
@@ -904,91 +779,39 @@ export class TBoolean<S extends TBooleanState = TBooleanState> extends TType<
       : ctx.INVALID_TYPE({ expected: TParsedType.Boolean }).ABORT()
   }
 
-  /**
-   * Enables/disables coercion on the schema, and/or allows for additional values
-   * to be considered valid booleans by converting them to `true`/`false` before parsing.
-   *
-   * @param coercion - The coercion options.
-   */
-  coerce<
-    TVal extends utils.Primitive,
-    FVal extends utils.Primitive,
-    T extends readonly [TVal, ...TVal[]] | undefined = undefined,
-    F extends readonly [FVal, ...FVal[]] | undefined = undefined,
-    B extends boolean = true
-  >(
-    coercion: { readonly true?: T; readonly false?: F } | B = true as B
-  ): TBoolean<{ coerce: boolean extends B ? { true: T; false: F } : B }> {
-    return new TBoolean({ ...this._def, coerce: coercion })
+  coerce(value: TBooleanCoercion = true): TBoolean {
+    return new TBoolean({ ...this._def, coerce: value })
   }
 
-  /**
-   * Allows for additional values to be considered valid booleans by
-   * converting them to `true` before parsing.
-   *
-   * @param values - The values to consider truthy.
-   */
-  truthy<TVal extends utils.Primitive, T extends readonly [TVal, ...TVal[]]>(
-    values: T
-  ): TBoolean<{
-    coerce: {
-      true: T
-      false: Exclude<
-        S['coerce'],
-        boolean
-      >['false'] extends infer X extends readonly utils.Primitive[]
-        ? { 0: X; 1: undefined }[utils.Equals<X, never>]
-        : never
-    }
-  }> {
-    return new TBoolean({
-      ...this._def,
-      coerce: {
-        ...(typeof this._def.coerce === 'boolean' ? {} : this._def.coerce),
-        true: values,
-      },
+  truthy(values: utils.Primitive[]): TBoolean {
+    return this.coerce({
+      true: values,
+      false:
+        typeof this._def.coerce === 'boolean'
+          ? undefined
+          : this._def.coerce.false,
     })
   }
 
-  /**
-   * Allows for additional values to be considered valid booleans by
-   * converting them to `false` before parsing.
-   *
-   * @param values - The values to consider falsy.
-   */
-  falsy<FVal extends utils.Primitive, F extends readonly [FVal, ...FVal[]]>(
-    values: F
-  ): TBoolean<{
-    coerce: {
-      true: Exclude<
-        S['coerce'],
-        boolean
-      >['true'] extends infer X extends readonly utils.Primitive[]
-        ? { 0: X; 1: undefined }[utils.Equals<X, never>]
-        : never
-      false: F
-    }
-  }> {
-    return new TBoolean({
-      ...this._def,
-      coerce: {
-        ...(typeof this._def.coerce === 'boolean' ? {} : this._def.coerce),
-        false: values,
-      },
+  falsy(values: utils.Primitive[]): TBoolean {
+    return this.coerce({
+      true:
+        typeof this._def.coerce === 'boolean'
+          ? undefined
+          : this._def.coerce.true,
+      false: values,
     })
   }
 
-  static create = (options?: CreateOptions): TBoolean<{ coerce: false }> =>
+  static create = (options?: CreateOptions): TBoolean =>
     new TBoolean({ typeName: TTypeName.Boolean, options, coerce: false })
 }
 
-/* ------------------------------------------------------------------------------------------------------------------ */
-/*                                                        True                                                        */
-/* ------------------------------------------------------------------------------------------------------------------ */
+/* -------------------------------------------------------------------------- */
+/*                                    True                                    */
+/* -------------------------------------------------------------------------- */
 
-export interface TTrueDef extends TDef {
-  readonly typeName: TTypeName.True
-}
+export type TTrueDef = MakeDef<TTypeName.True>
 
 export class TTrue extends TType<true, TTrueDef> {
   protected readonly _hint = THint.True
@@ -1003,13 +826,11 @@ export class TTrue extends TType<true, TTrueDef> {
     new TTrue({ typeName: TTypeName.True, options })
 }
 
-/* ------------------------------------------------------------------------------------------------------------------ */
-/*                                                        False                                                       */
-/* ------------------------------------------------------------------------------------------------------------------ */
+/* -------------------------------------------------------------------------- */
+/*                                    False                                   */
+/* -------------------------------------------------------------------------- */
 
-export interface TFalseDef extends TDef {
-  readonly typeName: TTypeName.False
-}
+export type TFalseDef = MakeDef<TTypeName.False>
 
 export class TFalse extends TType<false, TFalseDef> {
   protected readonly _hint = THint.False
@@ -1024,72 +845,42 @@ export class TFalse extends TType<false, TFalseDef> {
     new TFalse({ typeName: TTypeName.False, options })
 }
 
-/* ------------------------------------------------------------------------------------------------------------------ */
-/*                                                        Date                                                        */
-/* ------------------------------------------------------------------------------------------------------------------ */
+/* -------------------------------------------------------------------------- */
+/*                                    Date                                    */
+/* -------------------------------------------------------------------------- */
 
-export type TDateCheckInputRaw =
-  | utils.LiteralUnion<'now', string>
-  | number
-  | Date
-  | Dayjs
-export type TDateCheckInput = Date | 'now'
+const NOW = 'now'
+
+export type TDateCheckValue = Date | typeof NOW
 
 export type TDateCheck =
-  | checks.Min<TDateCheckInput>
-  | checks.Max<TDateCheckInput>
-  | checks.Range<TDateCheckInput>
+  | checks.Min<TDateCheckValue>
+  | checks.Max<TDateCheckValue>
+  | checks.Range<TDateCheckValue>
 
-const parseTDateCheckInput = (data: TDateCheckInputRaw): TDateCheckInput =>
-  data === 'now' ? 'now' : utils.dayjs(data).toDate()
-const toDayjsInput = (data: TDateCheckInput): Dayjs =>
-  data === 'now' ? utils.dayjs() : utils.dayjs(data)
+export const parseTDateCheckValue = (value: TDateCheckValue): Dayjs =>
+  value === NOW ? utils.dayjs() : utils.dayjs(value)
 
-export interface TDateState {
-  coerce: boolean | 'strings' | 'numbers'
-}
+export type TDateCoercion = boolean | 'strings' | 'numbers'
 
-export type TDateInput<S extends TDateState> =
-  | Date
-  | (S['coerce'] extends true
-      ? string | number
-      : S['coerce'] extends 'strings'
-      ? string
-      : S['coerce'] extends 'numbers'
-      ? number
-      : never)
+export type TDateDef = MakeDef<
+  TTypeName.Date,
+  { readonly rules: checks.ToRules<TDateCheck>; readonly coerce: TDateCoercion }
+>
 
-export interface TDateDef extends TDef, TDateState {
-  readonly typeName: TTypeName.Date
-  readonly rules: readonly TDateCheck[]
-}
-
-export class TDate<S extends TDateState = TDateState> extends TType<
-  Date,
-  TDateDef,
-  TDateInput<S>
-> {
+export class TDate extends TType<Date, TDateDef> {
   protected readonly _hint = THint.Date
 
   _parse(ctx: ParseContextOf<this>): ParseResultOf<this> {
     const { coerce, rules } = this._def
 
-    if (coerce) {
-      switch (coerce) {
-        case 'strings':
-          if (typeof ctx.data === 'string') {
-            ctx.setData(utils.dayjs(ctx.data).toDate())
-          }
-          break
-        case 'numbers':
-          if (typeof ctx.data === 'number') {
-            ctx.setData(new Date(ctx.data))
-          }
-          break
-        default:
-          if (typeof ctx.data === 'string' || typeof ctx.data === 'number') {
-            ctx.setData(utils.dayjs(ctx.data).toDate())
-          }
+    if (typeof ctx.data === 'string' || typeof ctx.data === 'number') {
+      if (coerce === true) {
+        ctx.setData(utils.dayjs(ctx.data).toDate())
+      } else if (coerce === 'strings' && typeof ctx.data === 'string') {
+        ctx.setData(utils.dayjs(ctx.data).toDate())
+      } else if (coerce === 'numbers' && typeof ctx.data === 'number') {
+        ctx.setData(utils.dayjs(ctx.data).toDate())
       }
     }
 
@@ -1104,8 +895,8 @@ export class TDate<S extends TDateState = TDateState> extends TType<
         case 'min':
           if (
             rule.inclusive
-              ? data.isBefore(toDayjsInput(rule.value))
-              : data.isSameOrBefore(toDayjsInput(rule.value))
+              ? data.isBefore(parseTDateCheckValue(rule.value))
+              : data.isSameOrBefore(parseTDateCheckValue(rule.value))
           ) {
             ctx.DIRTY(IssueKind.InvalidDate, rule)
             if (ctx.common.abortEarly) return ctx.ABORT()
@@ -1114,8 +905,8 @@ export class TDate<S extends TDateState = TDateState> extends TType<
         case 'max':
           if (
             rule.inclusive
-              ? data.isAfter(toDayjsInput(rule.value))
-              : data.isSameOrAfter(toDayjsInput(rule.value))
+              ? data.isAfter(parseTDateCheckValue(rule.value))
+              : data.isSameOrAfter(parseTDateCheckValue(rule.value))
           ) {
             ctx.DIRTY(IssueKind.InvalidDate, rule)
             if (ctx.common.abortEarly) return ctx.ABORT()
@@ -1141,165 +932,96 @@ export class TDate<S extends TDateState = TDateState> extends TType<
     return ctx.OK(ctx.data)
   }
 
-  /**
-   * Enables/disables coercion on the schema. Disabled by default.
-   *
-   * Possible values are:
-   *
-   * * `true` - Coerce both strings and numbers.
-   * * `'strings'` - Coerce only strings.
-   * * `'numbers'` - Coerce only numbers.
-   * * `false` - Disable coercion (deal only with native `Date` objects).
-   */
-  coerce<T extends boolean | 'strings' | 'numbers' = true>(
-    coercion = true as T
-  ): TDate<{ coerce: T }> {
-    return new TDate({ ...this._def, coerce: coercion })
+  coerce(value: TDateCoercion = true): TDate {
+    return new TDate({ ...this._def, coerce: value })
   }
 
-  /**
-   * Specifies the oldest date allowed, where:
-   *
-   * @param value - The oldest date allowed.
-   * @param options - Options for this rule.
-   * @param options.inclusive - Whether the date is inclusive or not.
-   * Defaults to `true`.
-   * @param options.message - The error message to use.
-   */
   min(
-    value: TDateCheckInputRaw,
+    value: TDateCheckValue,
     options?: { readonly inclusive?: boolean; readonly message?: string }
-  ): TDate<S> {
+  ): TDate {
     return this._addRule('min', {
-      value: parseTDateCheckInput(value),
+      value,
       inclusive: options?.inclusive ?? true,
       message: options?.message,
     })._removeRules(['range'])
   }
 
-  /**
-   * Shorthand for `min(value, { inclusive: false })`.
-   *
-   * @see {@link min | `min`}
-   */
   after(
-    value: TDateCheckInputRaw,
+    value: TDateCheckValue,
     options?: { readonly message?: string }
-  ): TDate<S> {
+  ): TDate {
     return this.min(value, { inclusive: false, message: options?.message })
   }
 
-  /**
-   * Shorthand for `min(value, { inclusive: true })`.
-   *
-   * @see {@link min | `min`}
-   */
   sameOrAfter(
-    value: TDateCheckInputRaw,
+    value: TDateCheckValue,
     options?: { readonly message?: string }
-  ): TDate<S> {
+  ): TDate {
     return this.min(value, { inclusive: true, message: options?.message })
   }
 
-  /**
-   * Specifies the latest date allowed, where:
-   *
-   * @param value - The latest date allowed.
-   * @param options - Options for this rule.
-   * @param options.inclusive - Whether the date is inclusive or not.
-   * Defaults to `true`.
-   * @param options.message - The error message to use.
-   */
   max(
-    value: TDateCheckInputRaw,
+    value: TDateCheckValue,
     options?: { readonly inclusive?: boolean; readonly message?: string }
-  ): TDate<S> {
+  ): TDate {
     return this._addRule('max', {
-      value: parseTDateCheckInput(value),
+      value,
       inclusive: options?.inclusive ?? true,
       message: options?.message,
     })._removeRules(['range'])
   }
 
-  /**
-   * Shorthand for `max(value, { inclusive: false })`.
-   *
-   * @see {@link max | `max`}
-   */
   before(
-    value: TDateCheckInputRaw,
+    value: TDateCheckValue,
     options?: { readonly message?: string }
-  ): TDate<S> {
+  ): TDate {
     return this.max(value, { inclusive: false, message: options?.message })
   }
 
-  /**
-   * Shorthand for `max(value, { inclusive: true })`.
-   *
-   * @see {@link max | `max`}
-   */
   sameOrBefore(
-    value: TDateCheckInputRaw,
+    value: TDateCheckValue,
     options?: { readonly message?: string }
-  ): TDate<S> {
+  ): TDate {
     return this.max(value, { inclusive: true, message: options?.message })
   }
 
-  /**
-   * Specifies a range of dates, where:
-   *
-   * @param min - The oldest date allowed.
-   * @param max - The latest date allowed.
-   * @param options - Options for this rule.
-   * @param options.inclusive - Whether the dates in the range are inclusive or not.
-   * Defaults to `'both'`.
-   * * `'min'` - Only the `min` value is inclusive in the range.
-   * * `'max'` - Only the `max` value is inclusive in the range.
-   * * `'both'` - Both the `min` and the `max` values are inclusive in the range.
-   * * `'none'` - Neither the `min` or the `max` values are inclusive in the range.
-   * @param options.message - The error message to use.
-   */
   range(
-    min: TDateCheckInputRaw,
-    max: TDateCheckInputRaw,
+    min: TDateCheckValue,
+    max: TDateCheckValue,
     options?: {
       readonly inclusive?: 'min' | 'max' | 'both' | 'none'
       readonly message?: string
     }
-  ): TDate<S> {
+  ): TDate {
     return this._addRule('range', {
-      min: parseTDateCheckInput(min),
-      max: parseTDateCheckInput(max),
+      min: min,
+      max: max,
       inclusive: options?.inclusive ?? 'both',
       message: options?.message,
     })._removeRules(['min', 'max'])
   }
 
-  /**
-   * Alias for {@link range | `range`}.
-   */
   between(
-    min: TDateCheckInputRaw,
-    max: TDateCheckInputRaw,
+    min: TDateCheckValue,
+    max: TDateCheckValue,
     options?: {
       readonly inclusive?: 'min' | 'max' | 'both' | 'none'
       readonly message?: string
     }
-  ): TDate<S> {
+  ): TDate {
     return this.range(min, max, options)
   }
 
-  static create = (options?: CreateOptions): TDate<{ coerce: false }> =>
+  static create = (options?: CreateOptions): TDate =>
     new TDate({ typeName: TTypeName.Date, options, rules: [], coerce: false })
 }
 
-/* ------------------------------------------------------------------------------------------------------------------ */
-/*                                                       Symbol                                                       */
-/* ------------------------------------------------------------------------------------------------------------------ */
+/* -------------------------------------------------------------------------- */
+/*                                   Symbol                                   */
+/* -------------------------------------------------------------------------- */
 
-export interface TSymbolDef extends TDef {
-  readonly typeName: TTypeName.Symbol
-}
+export type TSymbolDef = MakeDef<TTypeName.Symbol>
 
 export class TSymbol extends TType<symbol, TSymbolDef> {
   protected readonly _hint = THint.Symbol
@@ -1314,13 +1036,11 @@ export class TSymbol extends TType<symbol, TSymbolDef> {
     new TSymbol({ typeName: TTypeName.Symbol, options })
 }
 
-/* ------------------------------------------------------------------------------------------------------------------ */
-/*                                                        Null                                                        */
-/* ------------------------------------------------------------------------------------------------------------------ */
+/* -------------------------------------------------------------------------- */
+/*                                    Null                                    */
+/* -------------------------------------------------------------------------- */
 
-export interface TNullDef extends TDef {
-  readonly typeName: TTypeName.Null
-}
+export type TNullDef = MakeDef<TTypeName.Null>
 
 export class TNull extends TType<null, TNullDef> {
   protected readonly _hint = THint.Null
@@ -1335,13 +1055,11 @@ export class TNull extends TType<null, TNullDef> {
     new TNull({ typeName: TTypeName.Null, options, meta: { nullable: true } })
 }
 
-/* ------------------------------------------------------------------------------------------------------------------ */
-/*                                                      Undefined                                                     */
-/* ------------------------------------------------------------------------------------------------------------------ */
+/* -------------------------------------------------------------------------- */
+/*                                  Undefined                                 */
+/* -------------------------------------------------------------------------- */
 
-export interface TUndefinedDef extends TDef {
-  readonly typeName: TTypeName.Undefined
-}
+export type TUndefinedDef = MakeDef<TTypeName.Undefined>
 
 export class TUndefined extends TType<undefined, TUndefinedDef> {
   protected readonly _hint = THint.Undefined
@@ -1360,13 +1078,11 @@ export class TUndefined extends TType<undefined, TUndefinedDef> {
     })
 }
 
-/* ------------------------------------------------------------------------------------------------------------------ */
-/*                                                        Void                                                        */
-/* ------------------------------------------------------------------------------------------------------------------ */
+/* -------------------------------------------------------------------------- */
+/*                                    Void                                    */
+/* -------------------------------------------------------------------------- */
 
-export interface TVoidDef extends TDef {
-  readonly typeName: TTypeName.Void
-}
+export type TVoidDef = MakeDef<TTypeName.Void>
 
 export class TVoid extends TType<void, TVoidDef> {
   protected readonly _hint = THint.Void
@@ -1381,13 +1097,11 @@ export class TVoid extends TType<void, TVoidDef> {
     new TVoid({ typeName: TTypeName.Void, options, meta: { required: false } })
 }
 
-/* ------------------------------------------------------------------------------------------------------------------ */
-/*                                                        Never                                                       */
-/* ------------------------------------------------------------------------------------------------------------------ */
+/* -------------------------------------------------------------------------- */
+/*                                    Never                                   */
+/* -------------------------------------------------------------------------- */
 
-export interface TNeverDef extends TDef<never> {
-  readonly typeName: TTypeName.Never
-}
+export type TNeverDef = MakeDef<TTypeName.Never>
 
 export class TNever extends TType<never, TNeverDef> {
   protected readonly _hint = 'never'
@@ -1404,9 +1118,7 @@ export class TNever extends TType<never, TNeverDef> {
 /*                                   Buffer                                   */
 /* -------------------------------------------------------------------------- */
 
-export interface TBufferDef extends TDef {
-  readonly typeName: TTypeName.Buffer
-}
+export type TBufferDef = MakeDef<TTypeName.Buffer>
 
 export class TBuffer extends TType<Buffer, TBufferDef> {
   protected readonly _hint = THint.Buffer
@@ -1421,14 +1133,14 @@ export class TBuffer extends TType<Buffer, TBufferDef> {
     new TBuffer({ typeName: TTypeName.Buffer, options })
 }
 
-/* ------------------------------------------------------------------------------------------------------------------ */
-/*                                                       Literal                                                      */
-/* ------------------------------------------------------------------------------------------------------------------ */
+/* -------------------------------------------------------------------------- */
+/*                                   Literal                                  */
+/* -------------------------------------------------------------------------- */
 
-export interface TLiteralDef<V extends utils.Primitive> extends TDef {
-  readonly typeName: TTypeName.Literal
-  readonly value: V
-}
+export type TLiteralDef<V extends utils.Primitive> = MakeDef<
+  TTypeName.Literal,
+  { readonly value: V }
+>
 
 export class TLiteral<V extends utils.Primitive> extends TType<
   V,
@@ -1468,9 +1180,9 @@ export class TLiteral<V extends utils.Primitive> extends TType<
 
 export type AnyTLiteral = TLiteral<utils.Primitive>
 
-/* ------------------------------------------------------------------------------------------------------------------ */
-/*                                                        Enum                                                        */
-/* ------------------------------------------------------------------------------------------------------------------ */
+/* -------------------------------------------------------------------------- */
+/*                                    Enum                                    */
+/* -------------------------------------------------------------------------- */
 
 export type EnumValue = string | number
 export type EnumValues<T extends EnumValue = EnumValue> = readonly [T, ...T[]]
@@ -1502,16 +1214,16 @@ export type EnumExclude<T extends EnumLike, V extends T[keyof T]> = ToEnumLike<{
     : K]: T[K]
 }>
 
-export interface TEnumDef<T extends EnumLike> extends TDef {
-  readonly typeName: TTypeName.Enum
-  readonly enum: T
-}
+export type TEnumDef<T extends EnumLike> = MakeDef<
+  TTypeName.Enum,
+  { readonly enum: T }
+>
 
 export class TEnum<T extends EnumLike> extends TType<T[keyof T], TEnumDef<T>> {
   protected readonly _hint = this.values.map(utils.literalize).join(' | ')
 
   _parse(ctx: ParseContextOf<this>): ParseResultOf<this> {
-    const enumTypes = [
+    const validTypes = [
       ...new Set(
         this.values
           .map((value) => typeof value)
@@ -1521,16 +1233,16 @@ export class TEnum<T extends EnumLike> extends TType<T[keyof T], TEnumDef<T>> {
       ),
     ]
 
-    const isValidEnumType = (data: unknown): data is EnumValue =>
-      utils.includes(enumTypes, typeof data)
+    const isValidType = (data: unknown): data is EnumValue =>
+      utils.includes(validTypes, typeof data)
 
-    if (!isValidEnumType(ctx.data)) {
+    if (!isValidType(ctx.data)) {
       return ctx
         .INVALID_TYPE({
           expected:
-            enumTypes.length === 1
+            validTypes.length === 1
               ? { string: TParsedType.String, number: TParsedType.Number }[
-                  enumTypes[0]
+                  validTypes[0]
                 ]
               : TParsedType.EnumValue,
         })
@@ -1625,14 +1337,14 @@ export class TEnum<T extends EnumLike> extends TType<T[keyof T], TEnumDef<T>> {
 
 export type AnyTEnum = TEnum<EnumLike>
 
-/* ------------------------------------------------------------------------------------------------------------------ */
-/*                                                     InstanceOf                                                     */
-/* ------------------------------------------------------------------------------------------------------------------ */
+/* -------------------------------------------------------------------------- */
+/*                                 InstanceOf                                 */
+/* -------------------------------------------------------------------------- */
 
-export interface TInstanceOfDef<T extends utils.Class> extends TDef {
-  readonly typeName: TTypeName.InstanceOf
-  readonly cls: T
-}
+export type TInstanceOfDef<T extends utils.Class> = MakeDef<
+  TTypeName.InstanceOf,
+  { readonly cls: T }
+>
 
 export class TInstanceOf<T extends utils.Class> extends TType<
   InstanceType<T>,
@@ -1659,9 +1371,9 @@ export class TInstanceOf<T extends utils.Class> extends TType<
 
 export type AnyTInstanceOf = TInstanceOf<utils.Class>
 
-/* ------------------------------------------------------------------------------------------------------------------ */
-/*                                                      Nullable                                                      */
-/* ------------------------------------------------------------------------------------------------------------------ */
+/* -------------------------------------------------------------------------- */
+/*                                  Nullable                                  */
+/* -------------------------------------------------------------------------- */
 
 export interface TNullableDef<T extends AnyTType> extends TDef {
   readonly typeName: TTypeName.Nullable
@@ -1733,9 +1445,9 @@ export class TNullable<T extends AnyTType> extends TType<
 
 export type AnyTNullable = TNullable<AnyTType>
 
-/* ------------------------------------------------------------------------------------------------------------------ */
-/*                                                      Optional                                                      */
-/* ------------------------------------------------------------------------------------------------------------------ */
+/* -------------------------------------------------------------------------- */
+/*                                  Optional                                  */
+/* -------------------------------------------------------------------------- */
 
 export interface TOptionalDef<T extends AnyTType> extends TDef {
   readonly typeName: TTypeName.Optional
@@ -1801,9 +1513,9 @@ export class TOptional<T extends AnyTType> extends TType<
 
 export type AnyTOptional = TOptional<AnyTType>
 
-/* ------------------------------------------------------------------------------------------------------------------ */
-/*                                                      Required                                                      */
-/* ------------------------------------------------------------------------------------------------------------------ */
+/* -------------------------------------------------------------------------- */
+/*                                  Required                                  */
+/* -------------------------------------------------------------------------- */
 
 export interface TRequiredDef<T extends AnyTType> extends TDef {
   readonly typeName: TTypeName.Required
@@ -1859,9 +1571,9 @@ export class TRequired<T extends AnyTType> extends TType<
 
 export type AnyTRequired = TRequired<AnyTType>
 
-/* ------------------------------------------------------------------------------------------------------------------ */
-/*                                                      Readonly                                                      */
-/* ------------------------------------------------------------------------------------------------------------------ */
+/* -------------------------------------------------------------------------- */
+/*                                  Readonly                                  */
+/* -------------------------------------------------------------------------- */
 
 export type TReadonlyDepth = 'flat' | 'deep'
 
@@ -1982,9 +1694,9 @@ export class TReadonly<
 
 export type AnyTReadonly = TReadonly<AnyTType, TReadonlyDepth>
 
-/* ------------------------------------------------------------------------------------------------------------------ */
-/*                                                        Lazy                                                        */
-/* ------------------------------------------------------------------------------------------------------------------ */
+/* -------------------------------------------------------------------------- */
+/*                                    Lazy                                    */
+/* -------------------------------------------------------------------------- */
 
 export interface TLazyDef<T extends AnyTType> extends TDef {
   readonly typeName: TTypeName.Lazy
@@ -2038,9 +1750,9 @@ export class TLazy<T extends AnyTType> extends TType<
 
 export type AnyTLazy = TLazy<AnyTType>
 
-/* ------------------------------------------------------------------------------------------------------------------ */
-/*                                                       Promise                                                      */
-/* ------------------------------------------------------------------------------------------------------------------ */
+/* -------------------------------------------------------------------------- */
+/*                                   Promise                                  */
+/* -------------------------------------------------------------------------- */
 
 export interface TPromiseDef<T extends AnyTType> extends TDef {
   readonly typeName: TTypeName.Promise
@@ -2101,9 +1813,9 @@ export class TPromise<T extends AnyTType> extends TType<
 
 export type AnyTPromise = TPromise<AnyTType>
 
-/* ------------------------------------------------------------------------------------------------------------------ */
-/*                                                       Branded                                                      */
-/* ------------------------------------------------------------------------------------------------------------------ */
+/* -------------------------------------------------------------------------- */
+/*                                   Branded                                  */
+/* -------------------------------------------------------------------------- */
 
 export const BRAND = Symbol('TBrand')
 export type BRAND = typeof BRAND
@@ -2163,9 +1875,9 @@ export class TBranded<T extends AnyTType, B extends PropertyKey> extends TType<
 
 export type AnyTBranded = TBranded<AnyTType, PropertyKey>
 
-/* ------------------------------------------------------------------------------------------------------------------ */
-/*                                                       Default                                                      */
-/* ------------------------------------------------------------------------------------------------------------------ */
+/* -------------------------------------------------------------------------- */
+/*                                   Default                                  */
+/* -------------------------------------------------------------------------- */
 
 export interface TDefaultDef<
   T extends AnyTType,
@@ -2229,9 +1941,9 @@ export class TDefault<
 
 export type AnyTDefault = TDefault<AnyTType, unknown>
 
-/* ------------------------------------------------------------------------------------------------------------------ */
-/*                                                        Catch                                                       */
-/* ------------------------------------------------------------------------------------------------------------------ */
+/* -------------------------------------------------------------------------- */
+/*                                    Catch                                   */
+/* -------------------------------------------------------------------------- */
 
 export interface TCatchDef<T extends AnyTType, C extends T['_I']> extends TDef {
   readonly typeName: TTypeName.Catch
@@ -2292,52 +2004,30 @@ export class TCatch<T extends AnyTType, C extends T['_I']> extends TType<
 
 export type AnyTCatch = TCatch<AnyTType, unknown>
 
-/* ------------------------------------------------------------------------------------------------------------------ */
-/*                                                        Array                                                       */
-/* ------------------------------------------------------------------------------------------------------------------ */
+/* -------------------------------------------------------------------------- */
+/*                                    Array                                   */
+/* -------------------------------------------------------------------------- */
 
 export type TArrayCheck =
   | checks.Min
   | checks.Max
   | checks.Length
-  | checks.SortAscending
-  | checks.SortDescending
+  | checks.Sort<'ascending'>
+  | checks.Sort<'descending'>
 
-export type TArrayState = utils.MinMaxState
-export type TArrayInitialState = utils.MinMaxInitialState
-export type ComputeNextTArrayState<
-  CurrState extends TArrayState,
-  Method extends keyof utils.MinMaxState,
-  Value extends number,
-  Inclusive extends boolean
-> = utils.ComputeNextMinMaxState<CurrState, Method, Value, Inclusive>
+export type TArrayDef<T extends AnyTType> = MakeDef<
+  TTypeName.Array,
+  {
+    readonly rules: checks.ToRules<TArrayCheck>
+    readonly element: T
+  }
+>
 
-export type TArrayIO<
-  T extends AnyTType,
-  S extends TArrayState,
-  IO extends '_I' | '_O'
-> = utils.PositiveInfinity extends S['max']
-  ? T[IO][]
-  : utils.Equals<S['min'], S['max']> extends 1
-  ? [...utils.ConstructTuple<T[IO], S['min']>, ...never[]]
-  : [
-      ...utils.ConstructTuple<T[IO], S['min']>,
-      ...utils.PartialTuple<
-        utils.ConstructTuple<T[IO], N.Sub<S['max'], S['min']>>
-      >,
-      ...never[]
-    ]
-
-export interface TArrayDef<T extends AnyTType> extends TDef {
-  readonly typeName: TTypeName.Array
-  readonly rules: readonly TArrayCheck[]
-  readonly element: T
-}
-
-export class TArray<
-  T extends AnyTType,
-  S extends TArrayState = TArrayInitialState
-> extends TType<TArrayIO<T, S, '_O'>, TArrayDef<T>, TArrayIO<T, S, '_I'>> {
+export class TArray<Element extends AnyTType> extends TType<
+  Element['_O'][],
+  TArrayDef<Element>,
+  Element['_I'][]
+> {
   get _hint() {
     const needsParens = this.element.isType(
       TTypeName.Tuple,
@@ -2403,7 +2093,7 @@ export class TArray<
     }
 
     const entries = [...ctx.data.entries()]
-    const result: unknown[] = []
+    const result: this['_O'] = []
 
     if (ctx.common.async) {
       return Promise.resolve().then(async () => {
@@ -2419,7 +2109,7 @@ export class TArray<
             }
           }
         }
-        return ctx.isValid() ? ctx.OK(result as this['_O']) : ctx.ABORT()
+        return ctx.isValid() ? ctx.OK(result) : ctx.ABORT()
       })
     } else {
       for (const [index, value] of entries) {
@@ -2434,82 +2124,50 @@ export class TArray<
           }
         }
       }
-      return ctx.isValid() ? ctx.OK(result as this['_O']) : ctx.ABORT()
+      return ctx.isValid() ? ctx.OK(result) : ctx.ABORT()
     }
   }
 
-  get element(): T {
+  get element(): Element {
     return this._def.element
   }
 
-  /**
-   * Specifies the minimum number of items in the array, where:
-   *
-   * @param value - The lowest number of array items allowed.
-   */
-  min<V extends number, I extends boolean = true>(
-    value: V,
-    options?: { readonly inclusive?: I; readonly message?: string },
-    ..._errors: utils.$ValidateMinMax<S, 'min', V, I>
-  ): TArray<T, ComputeNextTArrayState<S, 'min', V, I>> {
+  min(
+    value: number,
+    options?: { readonly inclusive?: boolean; readonly message?: string }
+  ): TArray<Element> {
     return this._addRule('min', {
       value,
       inclusive: options?.inclusive ?? true,
       message: options?.message,
-    })._removeRules(['len']) as unknown as TArray<
-      T,
-      ComputeNextTArrayState<S, 'min', V, I>
-    >
+    })._removeRules(['len'])
   }
 
-  /**
-   * Specifies the maximum number of items in the array, where:
-   *
-   * @param value - The highest number of array items allowed.
-   */
-  max<V extends number, I extends boolean = true>(
-    value: V,
-    options?: { readonly inclusive?: I; readonly message?: string },
-    ..._errors: utils.$ValidateMinMax<S, 'max', V, I>
-  ): TArray<T, ComputeNextTArrayState<S, 'max', V, I>> {
+  max(
+    value: number,
+    options?: { readonly inclusive?: boolean; readonly message?: string }
+  ): TArray<Element> {
     return this._addRule('max', {
       value,
       inclusive: options?.inclusive ?? true,
       message: options?.message,
-    })._removeRules(['len']) as unknown as TArray<
-      T,
-      ComputeNextTArrayState<S, 'max', V, I>
-    >
+    })._removeRules(['len'])
   }
 
-  /**
-   * Specifies the exact number of items in the array, where:
-   *
-   * @param value - The number of array items allowed.
-   */
-  length<V extends number>(
-    value: V,
-    options?: { readonly message?: string },
-    ..._errors: utils.$ValidateNonNegativeInteger<V>
-  ) {
+  length(
+    value: number,
+    options?: { readonly message?: string }
+  ): TArray<Element> {
     return this._addRule('len', {
       value,
       message: options?.message,
-    })._removeRules(['min', 'max']) as unknown as TArray<T, { min: V; max: V }>
+    })._removeRules(['min', 'max'])
   }
 
-  /**
-   * Requires the array to comply with the `ascending` sort order.
-   *
-   * @param options - Options for this rule.
-   * @param options.convert - When `true`, the array is modified to match the sort order.
-   * Defaults to `false`.
-   * @param options.message - The error message to use.
-   */
   ascending(options?: {
     readonly convert?: boolean
     readonly message?: string
-  }): this {
+  }): TArray<Element> {
     return this._addRule('sort_ascending', {
       direction: 'ascending',
       convert: options?.convert ?? false,
@@ -2517,18 +2175,10 @@ export class TArray<
     })._removeRules(['sort_descending'])
   }
 
-  /**
-   * Requires the array to comply with the `descending` sort order.
-   *
-   * @param options - Options for this rule.
-   * @param options.convert - When `true`, the array is modified to match the sort order.
-   * Defaults to `false`.
-   * @param options.message - The error message to use.
-   */
   descending(options?: {
     readonly convert?: boolean
     readonly message?: string
-  }): this {
+  }): TArray<Element> {
     return this._addRule('sort_descending', {
       direction: 'descending',
       convert: options?.convert ?? false,
@@ -2536,13 +2186,10 @@ export class TArray<
     })._removeRules(['sort_ascending'])
   }
 
-  /**
-   * Flattens this `TArray` one level deep (if applicable).
-   */
-  flatten(): T extends AnyTArray ? T : this {
+  flatten(): Element extends AnyTArray ? Element : this {
     return (
       this.element instanceof TArray ? this.element : this
-    ) as T extends AnyTArray ? T : this
+    ) as Element extends AnyTArray ? Element : this
   }
 
   static create = <T extends AnyTType>(
@@ -2554,31 +2201,25 @@ export class TArray<
 
 export type AnyTArray = TArray<AnyTType>
 
-/* ------------------------------------------------------------------------------------------------------------------ */
-/*                                                        TSet                                                        */
-/* ------------------------------------------------------------------------------------------------------------------ */
+/* -------------------------------------------------------------------------- */
+/*                                    TSet                                    */
+/* -------------------------------------------------------------------------- */
 
 export type TSetCheck = checks.Min | checks.Max | checks.Size
 
-export type TSetState = utils.MinMaxState
-export type TSetInitialState = utils.MinMaxInitialState
-export type ComputeNextTSetState<
-  CurrState extends TSetState,
-  Method extends keyof utils.MinMaxState,
-  Value extends number,
-  Inclusive extends boolean
-> = utils.ComputeNextMinMaxState<CurrState, Method, Value, Inclusive>
+export type TSetDef<T extends AnyTType> = MakeDef<
+  TTypeName.Set,
+  {
+    readonly rules: checks.ToRules<TSetCheck>
+    readonly element: T
+  }
+>
 
-export interface TSetDef<T extends AnyTType> extends TDef {
-  readonly typeName: TTypeName.Set
-  readonly rules: readonly TSetCheck[]
-  readonly element: T
-}
-
-export class TSet<
-  T extends AnyTType,
-  S extends TSetState = TSetInitialState
-> extends TType<Set<T['_O']>, TSetDef<T>, Set<T['_I']>> {
+export class TSet<Element extends AnyTType> extends TType<
+  Set<Element['_O']>,
+  TSetDef<Element>,
+  Set<Element['_I']>
+> {
   protected readonly _hint = `Set<${this.element.hint}>`
 
   _parse(ctx: ParseContextOf<this>): ParseResultOf<this> {
@@ -2623,7 +2264,7 @@ export class TSet<
 
     const { element } = this._def
     const data = [...ctx.data.values()].map((v, i) => [v, i] as const)
-    const result = new Set<T['_O']>()
+    const result = new Set<Element['_O']>()
 
     if (ctx.common.async) {
       return Promise.resolve().then(async () => {
@@ -2654,75 +2295,51 @@ export class TSet<
     }
   }
 
-  get element(): T {
+  get element(): Element {
     return this._def.element
   }
 
-  /**
-   * Specifies the minimum number of items in the Set, where:
-   *
-   * @param value - The lowest number of Set items allowed.
-   */
-  min<V extends number, I extends boolean = true>(
-    value: V,
-    options?: { readonly inclusive?: I; readonly message?: string },
-    ..._errors: utils.$ValidateMinMax<S, 'min', V, I>
-  ): TSet<T, ComputeNextTSetState<S, 'min', V, I>> {
+  min(
+    value: number,
+    options?: { readonly inclusive?: boolean; readonly message?: string }
+  ): TSet<Element> {
     return this._addRule('min', {
       value,
       inclusive: options?.inclusive ?? true,
       message: options?.message,
-    })._removeRules(['size']) as unknown as TSet<
-      T,
-      ComputeNextTSetState<S, 'min', V, I>
-    >
+    })._removeRules(['size'])
   }
 
-  /**
-   * Specifies the maximum number of items in the Set, where:
-   *
-   * @param value - The highest number of Set items allowed.
-   */
-  max<V extends number, I extends boolean = true>(
-    value: V,
-    options?: { readonly inclusive?: I; readonly message?: string },
-    ..._errors: utils.$ValidateMinMax<S, 'max', V, I>
-  ): TSet<T, ComputeNextTSetState<S, 'max', V, I>> {
+  max(
+    value: number,
+    options?: { readonly inclusive?: boolean; readonly message?: string }
+  ): TSet<Element> {
     return this._addRule('max', {
       value,
       inclusive: options?.inclusive ?? true,
       message: options?.message,
-    })._removeRules(['size']) as unknown as TSet<
-      T,
-      ComputeNextTSetState<S, 'max', V, I>
-    >
+    })._removeRules(['size'])
   }
 
-  /**
-   * Specifies the exact number of items in the Set, where:
-   *
-   * @param value - The number of Set items allowed.
-   */
-  size<V extends number>(
-    value: V,
-    options?: { readonly message?: string },
-    ..._errors: utils.$ValidateNonNegativeInteger<V>
-  ) {
+  size(value: number, options?: { readonly message?: string }): TSet<Element> {
     return this._addRule('size', {
       value,
       message: options?.message,
-    })._removeRules(['min', 'max']) as unknown as TSet<T, { min: V; max: V }>
+    })._removeRules(['min', 'max'])
   }
 
-  static create = <T extends AnyTType>(element: T, options?: CreateOptions) =>
+  static create = <T extends AnyTType>(
+    element: T,
+    options?: CreateOptions
+  ): TSet<T> =>
     new TSet({ typeName: TTypeName.Set, options, element, rules: [] })
 }
 
 export type AnyTSet = TSet<AnyTType>
 
-/* ------------------------------------------------------------------------------------------------------------------ */
-/*                                                       TTuple                                                       */
-/* ------------------------------------------------------------------------------------------------------------------ */
+/* -------------------------------------------------------------------------- */
+/*                                   TTuple                                   */
+/* -------------------------------------------------------------------------- */
 
 export type TTupleItems = utils.AtLeastOne<AnyTType> | readonly []
 
@@ -2953,9 +2570,9 @@ export class TTuple<
 
 export type AnyTTuple = TTuple<TTupleItems, AnyTType | null>
 
-/* ------------------------------------------------------------------------------------------------------------------ */
-/*                                                       Record                                                       */
-/* ------------------------------------------------------------------------------------------------------------------ */
+/* -------------------------------------------------------------------------- */
+/*                                   Record                                   */
+/* -------------------------------------------------------------------------- */
 
 export type TRecordIO<
   K extends AnyTType<PropertyKey>,
@@ -3089,9 +2706,9 @@ export class TRecord<
 
 export type AnyTRecord = TRecord<AnyTType<PropertyKey>, AnyTType>
 
-/* ------------------------------------------------------------------------------------------------------------------ */
-/*                                                        TMap                                                        */
-/* ------------------------------------------------------------------------------------------------------------------ */
+/* -------------------------------------------------------------------------- */
+/*                                    TMap                                    */
+/* -------------------------------------------------------------------------- */
 
 export interface TMapDef<K extends AnyTType, V extends AnyTType> extends TDef {
   readonly typeName: TTypeName.Map
@@ -3171,9 +2788,9 @@ export class TMap<K extends AnyTType, V extends AnyTType> extends TType<
 
 export type AnyTMap = TMap<AnyTType, AnyTType>
 
-/* ------------------------------------------------------------------------------------------------------------------ */
-/*                                                       Object                                                       */
-/* ------------------------------------------------------------------------------------------------------------------ */
+/* -------------------------------------------------------------------------- */
+/*                                   Object                                   */
+/* -------------------------------------------------------------------------- */
 
 export type TObjectShape = { [x: string]: AnyTType }
 export type TObjectUnknownKeys = 'passthrough' | 'strip' | 'strict'
@@ -3202,8 +2819,8 @@ export type PartialDeep<T extends AnyTType> = T extends TObject<
   infer C
 >
   ? TObject<{ [K in keyof S]: TOptional<PartialDeep<S[K]>> }, UK, C>
-  : T extends TArray<infer El, infer St>
-  ? TArray<PartialDeep<El>, St>
+  : T extends TArray<infer El>
+  ? TArray<PartialDeep<El>>
   : T extends TOptional<infer U>
   ? TOptional<PartialDeep<U>>
   : T extends TNullable<infer U>
@@ -3602,9 +3219,9 @@ export type AnyTObject<S extends TObjectShape = TObjectShape> = TObject<
   TObjectCatchall | null
 >
 
-/* ------------------------------------------------------------------------------------------------------------------ */
-/*                                                      Function                                                      */
-/* ------------------------------------------------------------------------------------------------------------------ */
+/* -------------------------------------------------------------------------- */
+/*                                  Function                                  */
+/* -------------------------------------------------------------------------- */
 
 export interface TFunctionDef<A extends AnyTTuple, R extends AnyTType>
   extends TDef {
@@ -3790,9 +3407,9 @@ export class TFunction<A extends AnyTTuple, R extends AnyTType> extends TType<
 
 export type AnyTFunction = TFunction<AnyTTuple, AnyTType>
 
-/* ------------------------------------------------------------------------------------------------------------------ */
-/*                                                        Union                                                       */
-/* ------------------------------------------------------------------------------------------------------------------ */
+/* -------------------------------------------------------------------------- */
+/*                                    Union                                   */
+/* -------------------------------------------------------------------------- */
 
 export type TUnionMembers = utils.AtLeastOne<AnyTType>
 
@@ -3874,9 +3491,9 @@ export class TUnion<T extends TUnionMembers> extends TType<
 
 export type AnyTUnion = TUnion<utils.AtLeastOne<AnyTType>>
 
-/* ------------------------------------------------------------------------------------------------------------------ */
-/*                                                    Intersection                                                    */
-/* ------------------------------------------------------------------------------------------------------------------ */
+/* -------------------------------------------------------------------------- */
+/*                                Intersection                                */
+/* -------------------------------------------------------------------------- */
 
 export type TIntersectionMembers = utils.AtLeastOne<AnyTType>
 
@@ -4010,9 +3627,9 @@ export class TIntersection<Members extends TIntersectionMembers> extends TType<
 
 export type AnyTIntersection = TIntersection<TIntersectionMembers>
 
-/* ------------------------------------------------------------------------------------------------------------------ */
-/*                                                       Effects                                                      */
-/* ------------------------------------------------------------------------------------------------------------------ */
+/* -------------------------------------------------------------------------- */
+/*                                   Effects                                  */
+/* -------------------------------------------------------------------------- */
 
 export enum EffectKind {
   Preprocess = 'preprocess',
@@ -4042,7 +3659,7 @@ export interface BaseEffect<K extends EffectKind> {
 }
 
 export interface PreprocessEffect<T> extends BaseEffect<EffectKind.Preprocess> {
-  readonly transform: (data: unknown) => T
+  readonly transform: (data: unknown) => T | Promise<T>
 }
 
 export interface RefinementEffect<T extends AnyTType>
@@ -4274,12 +3891,12 @@ export class TEffects<
     )
   }
 
-  static preprocess = <I, O, T extends AnyTType<O, I>>(
-    preprocess: (data: unknown) => I,
+  static preprocess = <I, T extends AnyTType<unknown, I>>(
+    preprocess: (data: unknown) => I | Promise<I>,
     type: T,
     options?: CreateOptions
   ): TEffects<T> =>
-    TEffects._create<T, O, I, PreprocessEffect<I>>(
+    TEffects._create<T, T['_O'], I, PreprocessEffect<I>>(
       type,
       { kind: EffectKind.Preprocess, transform: preprocess },
       options
@@ -4301,9 +3918,9 @@ export class TEffects<
 
 export type AnyTEffects = TEffects<AnyTType>
 
-/* ------------------------------------------------------------------------------------------------------------------ */
-/*                                                      Pipeline                                                      */
-/* ------------------------------------------------------------------------------------------------------------------ */
+/* -------------------------------------------------------------------------- */
+/*                                  Pipeline                                  */
+/* -------------------------------------------------------------------------- */
 
 export interface TPipelineDef<In extends AnyTType, Out extends AnyTType>
   extends TDef {
@@ -4368,9 +3985,9 @@ export class TPipeline<In extends AnyTType, Out extends AnyTType> extends TType<
 
 export type AnyTPipeline = TPipeline<AnyTType, AnyTType>
 
-/* ------------------------------------------------------------------------------------------------------------------ */
-/*                                                       Extras                                                       */
-/* ------------------------------------------------------------------------------------------------------------------ */
+/* -------------------------------------------------------------------------- */
+/*                                   Extras                                   */
+/* -------------------------------------------------------------------------- */
 
 export type TNullish<T extends AnyTType> = TOptional<TNullable<T>>
 export type AnyTNullish = TNullish<AnyTType>
@@ -4435,7 +4052,7 @@ export const TPropertyKey = {
 
 export const TReadonlyDeep = TReadonly.createDeep
 
-/* ------------------------------------------------------------------------------------------------------------------ */
+/* -------------------------------------------------------------------------- */
 
 export enum TTypeName {
   Any = 'TAny',
@@ -4527,7 +4144,7 @@ export type TTypeNameMap<T extends TTypeName = TTypeName> = {
   [TTypeName.Void]: TVoid
 }[T]
 
-/* ------------------------------------------------------------------------------------------------------------------ */
+/* -------------------------------------------------------------------------- */
 
 export const tany = TAny.create
 export const tarray = TArray.create
@@ -4637,13 +4254,13 @@ export {
   tvoid as void,
 }
 
-/* ------------------------------------------------------------------------------------------------------------------ */
+/* -------------------------------------------------------------------------- */
 
 export type output<T extends AnyTType> = utils.FixEmptyObject<T['_O']>
 export type input<T extends AnyTType> = utils.FixEmptyObject<T['_I']>
 export type infer<T extends AnyTType> = output<T>
 
-/* ------------------------------------------------------ Utils ----------------------------------------------------- */
+/* ---------------------------------- Utils --------------------------------- */
 
 export type ToTPartialObj<
   T extends Record<PropertyKey, AnyTType>,

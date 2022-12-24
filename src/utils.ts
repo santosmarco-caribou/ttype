@@ -175,10 +175,11 @@ export namespace utils {
       | Date
       | Error
       | Generator
-      | Promise<unknown>
-      | ReadonlyArray<unknown>
-      | ReadonlyMap<unknown, unknown>
-      | ReadonlySet<unknown>
+      | Primitive
+      | Promise<any>
+      | ReadonlyArray<any>
+      | ReadonlyMap<any, any>
+      | ReadonlySet<any>
       | RegExp
     export type ConstructTuple<T, L extends number, _Acc extends readonly T[] = []> = _Acc extends { readonly length: L }
       ? _Acc
