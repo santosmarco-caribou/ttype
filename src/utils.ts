@@ -10,7 +10,7 @@ import { isPlainObject } from 'is-plain-object'
 import _mergeDeep from 'merge-deep'
 import _memoize from 'micro-memoize'
 import safeJsonStringify from 'safe-json-stringify'
-import type { N } from 'ts-toolbelt'
+import type { F, N } from 'ts-toolbelt'
 import type { NonNegativeInteger } from 'type-fest'
 import { AnyTType, CreateOptions, TType } from './types'
 
@@ -61,6 +61,8 @@ export namespace utils {
   export type Head<T extends readonly unknown[]> = T extends readonly [infer H, ...unknown[]] ? H : never
   export type Tail<T extends readonly unknown[]> = T extends readonly [unknown, ...infer R] ? R : []
   export type Last<T extends readonly unknown[]> = Head<Reverse<T>>
+  declare const BRAND: unique symbol
+  export type Branded<T, B> = T & { readonly [BRAND]: B }
   declare const TYPE_ERROR: unique symbol
   export type $TypeError<Msg extends string> = { [TYPE_ERROR]: Msg }
   export type $Validation<Condition extends 0 | 1, Msg extends string> = { 0: []; 1: [ERROR: $TypeError<Msg>] }[Condition]
@@ -100,8 +102,8 @@ export namespace utils {
   export const isArray = <T>(value: T): value is Extract<T, readonly unknown[]> => Array.isArray(value)
 
   /* --------------------------------------------------------------- Strings -------------------------------------------------------------- */
-  export const literalize = <T extends Primitive>(value: T) => {
-    return (() => {
+  export const literalize = <T extends Primitive>(value: T): Literalized<T> => {
+    return ((): string => {
       if (typeof value === 'string') return `"${value}"`
       if (typeof value === 'number' || typeof value === 'boolean') return `${value}`
       if (value === undefined) return 'undefined'
@@ -110,28 +112,30 @@ export namespace utils {
       return 'symbol'
     })() as Literalized<T>
   }
-  export const replaceAll = <T extends string, From extends string, To extends string>(str: T, from: From, to: To) => str.split(from).join(to) as ReplaceAll<T, From, To>
-  export const pluralize = (word: string, count: number) => `${word}${count < 0 ? '(s)' : count <= 1 ? '' : 's'}`
-  export const intToLiteral = (int: number) => (int === 0 ? 'zero' : int === 1 ? 'one' : `${int}`)
-  export const jsonStringify = (value: object) => safeJsonStringify(value, (_, val) => (typeof val === 'bigint' ? `${val}n` : typeof val === 'symbol' ? val.toString() : val), 2)
+  export const replaceAll = <T extends string, From extends string, To extends string>(str: T, from: From, to: To): ReplaceAll<T, From, To> => str.split(from).join(to) as ReplaceAll<T, From, To>
+  export const pluralize = (word: string, count: number): string => `${word}${count < 0 ? '(s)' : count <= 1 ? '' : 's'}`
+  export const intToLiteral = (int: number): string => (int === 0 ? 'zero' : int === 1 ? 'one' : `${int}`)
+  export const jsonStringify = (value: object): string => safeJsonStringify(value, (_, val) => (typeof val === 'bigint' ? `${val}n` : typeof val === 'symbol' ? val.toString() : val), 2)
 
   /* --------------------------------------------------------------- Arrays --------------------------------------------------------------- */
   export const includes = <T>(arr: readonly T[], item: unknown): item is T => [item, ...arr].slice(1).includes(item)
-  export const tail = <T extends readonly unknown[]>(arr: T) => arr.slice(1) as Tail<T>
-  export const head = <T extends readonly unknown[]>(arr: T) => arr[0] as Head<T>
-  export const last = <T extends readonly unknown[]>(arr: T) => arr[arr.length - 1] as Last<T>
+  export const tail = <T extends readonly unknown[]>(arr: T): Tail<T> => arr.slice(1) as Tail<T>
+  export const head = <T extends readonly unknown[]>(arr: T): Head<T> => arr[0] as Head<T>
+  export const last = <T extends readonly unknown[]>(arr: T): Last<T> => arr[arr.length - 1] as Last<T>
 
   /* --------------------------------------------------------------- Objects -------------------------------------------------------------- */
-  export const cloneDeep = _cloneDeep
+  export type DeepCloned<T> = Branded<T, '__deepCloned'>
+  export const cloneDeep = <T>(value: T): DeepCloned<T> => _cloneDeep(value) as DeepCloned<T>
   export const mergeDeep = _mergeDeep
-  export const keys = <T extends object>(obj: T) => Object.keys(obj) as (keyof T)[]
-  export const entries = <T extends object>(obj: T) => Object.entries(obj) as Entries<T>
-  export const values = <T extends object>(obj: T) => Object.values(obj) as Values<T>[]
-  export const fromEntries = <K extends PropertyKey, T extends readonly [K, unknown][]>(entries: T) => Object.fromEntries(entries) as FromEntries<T[number]>
-  export const diff = <A extends object, B extends object>(a: A, b: B) => ({ ...omit(a, Object.keys(b) as (keyof A)[]), ...omit(b, Object.keys(a) as (keyof B)[]) } as Diff<A, B>)
-  export const merge = <A extends object, B extends object>(a: A, b: B) => ({ ...cloneDeep(a), ...cloneDeep(b) } as Merge<A, B>)
-  export const pick = <T extends object, K extends keyof T>(obj: T, keys: readonly K[]) => Object.fromEntries(entries(obj).filter(([k]) => includes(keys, k))) as Pick<T, K>
-  export const omit = <T extends object, K extends keyof T>(obj: T, keys: readonly K[]) => Object.fromEntries(entries(obj).filter(([k]) => !includes(keys, k))) as Omit<T, K>
+  export const keys = <T extends object>(obj: T): readonly (keyof T)[] => Object.keys(obj) as (keyof T)[]
+  export const entries = <T extends object>(obj: T): Entries<T> => Object.entries(obj) as Entries<T>
+  export const values = <T extends object>(obj: T): readonly Values<T>[] => Object.values(obj) as Values<T>[]
+  export const fromEntries = <K extends PropertyKey, T extends readonly [K, unknown][]>(entries: T): FromEntries<T[number]> => Object.fromEntries(entries) as FromEntries<T[number]>
+  export const diff = <A extends object, B extends object>(a: A, b: B): Diff<A, B> => ({ ...omit(a, Object.keys(b) as (keyof A)[]), ...omit(b, Object.keys(a) as (keyof B)[]) } as Diff<A, B>)
+  export const merge = <A extends object, B extends object>(a: A, b: B): Merge<A, B> => ({ ...cloneDeep(a), ...cloneDeep(b) } as Merge<A, B>)
+  export const pick = <T extends object, K extends keyof T>(obj: T, keys: readonly K[]): Pick<T, K> => Object.fromEntries(entries(obj).filter(([k]) => includes(keys, k))) as Pick<T, K>
+  export const omit = <T extends object, K extends keyof T>(obj: T, keys: readonly K[]): Omit<T, K> => Object.fromEntries(entries(obj).filter(([k]) => !includes(keys, k))) as Omit<T, K>
+  export const simplify = <T>(value: T): Simplify<T> => value as Simplify<T>
 
   /* ---------------------------------------------------------------- Dates --------------------------------------------------------------- */
   _dayjs.extend(isSameOrBefore)
@@ -148,6 +152,7 @@ export namespace utils {
     return [arg, maybeCreateOptions]
   }
   export const ensureCreateOptions = (options: CreateOptions | AnyTType): CreateOptions | undefined => (options instanceof TType ? undefined : options)
+  export const widen = <T>(value: F.Narrow<T>): T => value as T
 
   /* --------------------------------------------------------------- Colors --------------------------------------------------------------- */
   export const colors = createColors({ useColor: true })

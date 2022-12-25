@@ -195,7 +195,9 @@ export abstract class TType<O, Def extends TDef, I = O> {
     return this.is(data)
   }
 
-  optional(): TOptional<this> {
+  optional<T extends AnyTOptional>(this: T): T
+  optional(this: this): TOptional<this>
+  optional() {
     return TOptional.create(this, this.options)
   }
 
@@ -1835,7 +1837,7 @@ export class TBranded<T extends AnyTType, B extends PropertyKey> extends TType<
   TBrandedDef<T, B>,
   T['_I']
 > {
-  protected readonly _hint = `Branded<${this.underlying.hint}>`
+  protected readonly _hint = THint.Branded(this)
 
   _parse(ctx: ParseContextOf<this>): ParseResultOf<this> {
     return this.underlying._parse(
@@ -4078,6 +4080,7 @@ export enum TTypeName {
   Never = 'TNever',
   Null = 'TNull',
   Nullable = 'TNullable',
+  Nullish = 'TNullish',
   Number = 'TNumber',
   Object = 'TObject',
   Optional = 'TOptional',

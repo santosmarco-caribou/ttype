@@ -5,8 +5,14 @@ import {
   type AnyTType,
   type AnyTUnion,
   TObjectShape,
+  AnyTBranded,
 } from './types'
 import { utils } from './utils'
+
+const branded = (instance: AnyTBranded): string =>
+  `${instance.underlying.hint} & t.Brand<${utils.literalize(
+    instance.getBrand()
+  )}>`
 
 const object = <S extends TObjectShape>(instance: AnyTObject<S>): string => {
   const {
@@ -38,7 +44,7 @@ const union = (instance: AnyTUnion): string => {
   const withoutNevers = members.filter((m) => !m.isType(TTypeName.Never))
   if (withoutNevers.length === 0) return THint.Never
 
-  const withoutNullishs = withoutNevers.filter(function filterNullish(
+  const withoutNullishs = withoutNevers.map(function filterNullish(
     m: AnyTType
   ): AnyTType {
     if (m.isType(TTypeName.Optional, TTypeName.Nullable)) {
@@ -84,9 +90,18 @@ const union = (instance: AnyTUnion): string => {
     }
   }
 
-  const unionized = [
-    ...new Set(filtered.map((m) => m.hint).concat(...hintsToAdd.values())),
+  const unique = [
+    ...new Set(filtered.map((m) => [m.typeName, m.hint] as const)),
   ]
+
+  const parenthesized = unique.map(([t, h]) => {
+    if ([TTypeName.Branded].includes(t)) {
+      return `(${h})`
+    }
+    return h
+  })
+
+  const unionized = parenthesized.concat(...hintsToAdd.values())
 
   return unionized.join(' | ')
 }
@@ -108,6 +123,7 @@ export const THint = {
   Undefined: 'undefined',
   Unknown: 'unknown',
   Void: 'void',
+  Branded: branded,
   Object: object,
   Union: union,
 } as const
